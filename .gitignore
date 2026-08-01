@@ -1,0 +1,11 @@
+# Environment variables (contains API keys)
+.env
+
+# Python cache
+__pycache__/
+
+# Excel files (generated)
+crypto_summary.xlsx
+
+# Paper trading data
+paper_trades.json
