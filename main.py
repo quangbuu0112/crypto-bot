@@ -22,70 +22,104 @@ def send_telegram_alert(message: str):
         print(f"❌ Lỗi gửi Telegram: {e}")
 
 def run_bot_cycle():
-    print(f"\n🔍 [{time.strftime('%Y-%m-%d %H:%M:%S')}] Bắt đầu chu kỳ quét mới...")
+    print("\n" + "=" * 55)
+    print(f"🔍 [{time.strftime('%Y-%m-%d %H:%M:%S')}] Bắt đầu chu kỳ quét mới...")
+    print("=" * 55)
 
-    # 0. BỘ LỌC VĨ MÔ TOÀN THỊ TRƯỜNG (BTC TREND + FEAR & GREED INDEX)
+    # BƯỚC 1: BỘ LỌC VĨ MÔ TOÀN THỊ TRƯỜNG (MACRO GATEKEEPER)
     market_health = check_market_health()
     if market_health:
-        print(f"🌐 [MACRO GATEKEEPER] Regime: {market_health.market_regime} | F&G: {market_health.fng_summary}")
+        status_b1 = "[ĐẠT] Đủ điều kiện an toàn để mở lệnh mua Altcoin." if market_health.can_open_trades else "[TỪ CHỐI] Khóa lệnh mua do thị trường rủi ro cao."
+        print(f"🌐 [Bước 1: Macro Gatekeeper] {status_b1}")
+        print(f"   ├─ Chế độ: {market_health.market_regime} | F&G: {market_health.fng_summary}")
         print(f"   └─ Đánh giá BTC: {market_health.summary}")
 
-        # Nếu thị trường rủi ro sập (BEARISH_DANGER) -> Tạm dừng mở vị thế mua Altcoin
         if not market_health.can_open_trades:
             print("⛔ [MACRO LOCK] Thị trường BTC rủi ro cao. Khóa toàn bộ lệnh mua Altcoin chu kỳ này!")
             return
 
     min_required_score = market_health.min_confidence_score if market_health else 7
 
-    # 1. QUÉT TÍN HIỆU VÀ LƯU LỆNH MỚI
+    # KIỂM TRA CHI TIẾT TỪNG ĐỒNG COIN THEO TỪNG BƯỚC
     for symbol in config.SYMBOLS:
-        tech_signal = analyze_technical_signal(symbol)
+        print(f"\n👉 [KIỂM TRA COIN] {symbol}:")
+        tech_signal, diag = analyze_technical_signal(symbol)
 
-        if tech_signal:
-            print(f"🎯 [KỸ THUẬT MATCH] {symbol}. Đang gửi Gemini AI thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
+        # Bước 2: Trend Alignment (Khung 4H)
+        step2 = diag.get("step2_trend_4h")
+        if step2:
+            if step2["status"] == "PASS":
+                print(f"   ├─ Bước 2 (Trend 4H): [ĐẠT] {step2['detail']}")
+            else:
+                print(f"   └─ Bước 2 (Trend 4H): [TỪ CHỐI] {step2['detail']}")
+                continue
 
-            ai_audit = audit_signal_with_gemini(
-                symbol=tech_signal['symbol'],
-                entry_price=tech_signal['entry_price'],
-                rsi=tech_signal['rsi'],
-                adx=tech_signal['adx'],
-                vol_ratio=tech_signal['vol_ratio'],
-                candles_summary=tech_signal['candles_summary'],
-                stop_loss=tech_signal.get('stop_loss'),
-                take_profit=tech_signal.get('take_profit'),
-                atr=tech_signal.get('atr')
+        # Bước 3: Trigger kỹ thuật (Khung 1H)
+        step3 = diag.get("step3_trigger_1h")
+        if step3:
+            if step3["status"] == "PASS":
+                print(f"   ├─ Bước 3 (Kỹ thuật 1H): [ĐẠT] {step3['detail']}")
+            else:
+                print(f"   └─ Bước 3 (Kỹ thuật 1H): [TỪ CHỐI] {step3['detail']}")
+                continue
+
+        # Bước 4: Gemini AI Audit
+        print(f"   ├─ Bước 4 (Gemini AI Audit): Đang gửi thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
+        ai_audit = audit_signal_with_gemini(
+            symbol=tech_signal['symbol'],
+            entry_price=tech_signal['entry_price'],
+            rsi=tech_signal['rsi'],
+            adx=tech_signal['adx'],
+            vol_ratio=tech_signal['vol_ratio'],
+            candles_summary=tech_signal['candles_summary'],
+            stop_loss=tech_signal.get('stop_loss'),
+            take_profit=tech_signal.get('take_profit'),
+            atr=tech_signal.get('atr')
+        )
+
+        if ai_audit:
+            if ai_audit.decision == "APPROVE" and ai_audit.confidence_score >= min_required_score:
+                print(f"   ├─ Bước 4 (Gemini AI Audit): [ĐẠT] Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
+                print(f"   │  └─ Lý do: {ai_audit.ai_reasoning}")
+            else:
+                print(f"   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Quyết định: {ai_audit.decision}, Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
+                print(f"      └─ Lý do: {ai_audit.ai_reasoning}")
+                continue
+        else:
+            print("   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
+            continue
+
+        # Bước 5: Quản trị vị thế & Mở lệnh
+        trade = open_paper_trade(
+            symbol=symbol,
+            entry_price=tech_signal['entry_price'],
+            stop_loss=tech_signal.get('stop_loss'),
+            take_profit=tech_signal.get('take_profit'),
+            sl_pct=tech_signal.get('sl_pct'),
+            tp_pct=tech_signal.get('tp_pct'),
+            ai_score=ai_audit.confidence_score
+        )
+
+        if trade:
+            print(f"   └─ Bước 5 (Thực thi lệnh): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP: ${trade['take_profit']:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+            macro_info = (
+                f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
+                if market_health else ""
             )
-
-            if ai_audit and ai_audit.decision == "APPROVE" and ai_audit.confidence_score >= min_required_score:
-                # Mở lệnh Paper Trade với SL/TP động từ ATR
-                trade = open_paper_trade(
-                    symbol=symbol,
-                    entry_price=tech_signal['entry_price'],
-                    stop_loss=tech_signal.get('stop_loss'),
-                    take_profit=tech_signal.get('take_profit'),
-                    sl_pct=tech_signal.get('sl_pct'),
-                    tp_pct=tech_signal.get('tp_pct'),
-                    ai_score=ai_audit.confidence_score
-                )
-
-                if trade:
-                    macro_info = (
-                        f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
-                        if market_health else ""
-                    )
-                    msg = (
-                        f"📝 *MỞ LỆNH MUA MÔ PHỎNG (PAPER TRADE)* 📝\n\n"
-                        f"{macro_info}"
-                        f"• *Cặp coin:* `{symbol}`\n"
-                        f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
-                        f"• *Mục tiêu TP (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:.2f}`\n"
-                        f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:.2f}`\n\n"
-                        f"🧠 *AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: {min_required_score})\n"
-                        f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                        f"📌 *Hệ thống đã tự động lưu lệnh để theo dõi kết quả thực tế!*"
-                    )
-                    print(f"✅ [PAPER TRADE OPENED] {symbol} -> Gửi Telegram...")
-                    send_telegram_alert(msg)
+            msg = (
+                f"📝 *MỞ LỆNH MUA MÔ PHỎNG (PAPER TRADE)* 📝\n\n"
+                f"{macro_info}"
+                f"• *Cặp coin:* `{symbol}`\n"
+                f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
+                f"• *Mục tiêu TP (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:.2f}`\n"
+                f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:.2f}`\n\n"
+                f"🧠 *AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: {min_required_score})\n"
+                f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
+                f"📌 *Hệ thống đã tự động lưu lệnh để theo dõi kết quả thực tế!*"
+            )
+            send_telegram_alert(msg)
+        else:
+            print(f"   └─ Bước 5 (Thực thi lệnh): [BỎ QUA] Coin {symbol} đã có vị thế OPEN đang chạy, không mở thêm.")
 
         time.sleep(1)
 

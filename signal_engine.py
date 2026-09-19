@@ -16,50 +16,97 @@ def fetch_ohlcv_data(symbol: str, timeframe: str, limit: int = 300) -> pd.DataFr
         print(f"❌ Lỗi kết nối API Binance ({symbol} - {timeframe}): {e}")
         return None
 
-def analyze_technical_signal(symbol: str):
+def analyze_technical_signal(symbol: str) -> tuple:
     """
     Phân tích kỹ thuật Đa khung thời gian (4H Trend + 1H Entry).
-    Nếu thỏa mãn, trả về dict thông số kỹ thuật. Ngược lại trả về None.
+    Trả về: (tech_signal_dict, diagnostics_dict)
     """
+    diagnostics = {
+        "step2_trend_4h": None,
+        "step3_trigger_1h": None
+    }
+
     df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=300)
     df_1h = fetch_ohlcv_data(symbol, timeframe="1h", limit=100)
 
     if df_4h is None or df_1h is None:
-        return None
+        diagnostics["step2_trend_4h"] = {
+            "status": "ERROR",
+            "detail": "Không thể kết nối lấy dữ liệu nến từ sàn Binance"
+        }
+        return None, diagnostics
 
     # 1. KIỂM TRA KHUNG 4H (BỘ LỌC XU HƯỚNG TREND ALIGNMENT)
     df_4h['EMA_50_4h'] = ta.ema(df_4h['close'], length=50)
     df_4h['EMA_200_4h'] = ta.ema(df_4h['close'], length=200)
     past_4h = df_4h.iloc[-2]
-    is_uptrend_4h = (past_4h['close'] > past_4h['EMA_50_4h']) and (past_4h['EMA_50_4h'] > past_4h['EMA_200_4h'])
+    close_4h = float(past_4h['close'])
+    ema50_4h = float(past_4h['EMA_50_4h'])
+    ema200_4h = float(past_4h['EMA_200_4h'])
 
-    # Nếu 4H không thỏa mãn Trend Alignment (Giá > EMA50 > EMA200) -> Bỏ qua ngay
-    if not is_uptrend_4h:
-        return None
+    is_uptrend_4h = (close_4h > ema50_4h) and (ema50_4h > ema200_4h)
+
+    if is_uptrend_4h:
+        diagnostics["step2_trend_4h"] = {
+            "status": "PASS",
+            "detail": f"Giá 4H (${close_4h:,.2f}) > EMA50 (${ema50_4h:,.2f}) > EMA200 (${ema200_4h:,.2f}) -> Uptrend chuẩn."
+        }
+    else:
+        reasons_4h = []
+        if close_4h <= ema50_4h:
+            reasons_4h.append(f"Giá 4H (${close_4h:,.2f}) <= EMA50 (${ema50_4h:,.2f})")
+        if ema50_4h <= ema200_4h:
+            reasons_4h.append(f"EMA50 (${ema50_4h:,.2f}) <= EMA200 (${ema200_4h:,.2f}) (Downtrend/Sideway dài hạn)")
+        diagnostics["step2_trend_4h"] = {
+            "status": "REJECT",
+            "detail": "; ".join(reasons_4h) if reasons_4h else "Chưa đạt cấu trúc Uptrend 4H"
+        }
+        return None, diagnostics
 
     # 2. KIỂM TRA KHUNG 1H (BỘ LỌC VÀO LỆNH)
     df_1h['EMA_20_1h'] = ta.ema(df_1h['close'], length=20)
     df_1h['RSI_1h'] = ta.rsi(df_1h['close'], length=14)
-    
     adx_df = ta.adx(df_1h['high'], df_1h['low'], df_1h['close'], length=14)
     df_1h['ADX_14_1h'] = adx_df['ADX_14']
     df_1h['VOL_MA20_1h'] = df_1h['volume'].rolling(20).mean()
     df_1h['ATR_14_1h'] = ta.atr(df_1h['high'], df_1h['low'], df_1h['close'], length=config.ATR_LENGTH)
 
-    # Nến 1H vừa đóng cửa (iloc[-2])
     past_candle = df_1h.iloc[-2]
+    close_1h = float(past_candle['close'])
+    ema20_1h = float(past_candle['EMA_20_1h'])
+    rsi_1h = float(past_candle['RSI_1h'])
+    adx_1h = float(past_candle['ADX_14_1h'])
+    vol_1h = float(past_candle['volume'])
+    vol_ma20 = float(past_candle['VOL_MA20_1h'])
+    vol_ratio = (vol_1h / vol_ma20) if vol_ma20 > 0 else 0.0
 
-    cond_ema = past_candle['close'] > past_candle['EMA_20_1h']
-    cond_rsi = 50 < past_candle['RSI_1h'] < 68
-    cond_adx = past_candle['ADX_14_1h'] > 20
-    cond_vol = past_candle['volume'] > (1.1 * past_candle['VOL_MA20_1h'])
+    cond_ema = close_1h > ema20_1h
+    cond_rsi = 50 < rsi_1h < 68
+    cond_adx = adx_1h > 20
+    cond_vol = vol_1h > (1.1 * vol_ma20)
 
-    # Nếu thỏa mãn toàn bộ bộ lọc Kỹ thuật
+    reject_reasons_1h = []
+    if not cond_ema:
+        reject_reasons_1h.append(f"Giá 1H (${close_1h:,.2f}) <= EMA20 (${ema20_1h:,.2f})")
+    if not cond_rsi:
+        if rsi_1h <= 50:
+            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) <= 50 (Lực mua yếu, yêu cầu 50-68)")
+        else:
+            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) >= 68 (Quá mua / Overbought, rủi ro đu đỉnh)")
+    if not cond_adx:
+        reject_reasons_1h.append(f"ADX 1H ({adx_1h:.1f}) <= 20 (Xung lực xu hướng yếu / Sideway)")
+    if not cond_vol:
+        reject_reasons_1h.append(f"Volume ({vol_ratio:.2f}x VolMA) chưa đạt bùng nổ (yêu cầu > 1.1x)")
+
     if cond_ema and cond_rsi and cond_adx and cond_vol:
-        entry_price = float(past_candle['close'])
+        diagnostics["step3_trigger_1h"] = {
+            "status": "PASS",
+            "detail": f"Thỏa mãn toàn bộ: Giá > EMA20, RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Volume={vol_ratio:.2f}x VolMA."
+        }
+
+        entry_price = close_1h
         atr_val = float(past_candle['ATR_14_1h']) if pd.notna(past_candle['ATR_14_1h']) else 0.0
 
-        # Tính Stop Loss / Take Profit theo ATR hoặc cấu hình nới rộng
         if config.USE_ATR_STOPS and atr_val > 0:
             stop_loss = entry_price - (config.ATR_SL_MULTIPLIER * atr_val)
             take_profit = entry_price + (config.ATR_TP_MULTIPLIER * atr_val)
@@ -71,7 +118,6 @@ def analyze_technical_signal(symbol: str):
             stop_loss = entry_price * (1 - sl_pct)
             take_profit = entry_price * (1 + tp_pct)
 
-        # Tóm tắt 5 nến 1H gần nhất làm chuỗi text cho Gemini
         last_5_candles = df_1h.iloc[-6:-1]
         candles_summary = ""
         for _, row in last_5_candles.iterrows():
@@ -80,13 +126,11 @@ def analyze_technical_signal(symbol: str):
                 f"O={row['open']:.2f}, H={row['high']:.2f}, L={row['low']:.2f}, C={row['close']:.2f}\n"
             )
 
-        vol_ratio = past_candle['volume'] / past_candle['VOL_MA20_1h']
-
-        return {
+        signal_data = {
             "symbol": symbol,
             "entry_price": entry_price,
-            "rsi": float(past_candle['RSI_1h']),
-            "adx": float(past_candle['ADX_14_1h']),
+            "rsi": rsi_1h,
+            "adx": adx_1h,
             "vol_ratio": float(vol_ratio),
             "atr": atr_val,
             "stop_loss": float(stop_loss),
@@ -96,5 +140,10 @@ def analyze_technical_signal(symbol: str):
             "candles_summary": candles_summary,
             "closed_time": past_candle['timestamp'].strftime('%Y-%m-%d %H:%M UTC')
         }
-
-    return None
+        return signal_data, diagnostics
+    else:
+        diagnostics["step3_trigger_1h"] = {
+            "status": "REJECT",
+            "detail": "; ".join(reject_reasons_1h)
+        }
+        return None, diagnostics
