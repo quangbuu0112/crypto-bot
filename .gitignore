@@ -5,7 +5,8 @@
 __pycache__/
 
 # Excel files (generated)
-crypto_summary.xlsx
+reports/crypto_summary.xlsx
 
 # Paper trading data
 paper_trades.json
+
