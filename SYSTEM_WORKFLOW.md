@@ -1,6 +1,6 @@
 # 🤖 TỔNG QUAN QUY TRÌNH VẬN HÀNH BOT (SYSTEM WORKFLOW)
 
-> **Hệ thống:** Hybrid Paper & Live Testnet Trading Bot (Python + Gemini 3.5 Flash)  
+> **Hệ thống:** Hybrid Paper & Live Testnet Trading Bot (Python + Gemini 3.6 Flash / 3.5 Flash-Lite)  
 > **Tần suất quét:** Mỗi 15 phút một lần (`SLEEP_INTERVAL_SECONDS = 900`)  
 > **Cặp coin theo dõi:** `BTC/USDT`, `ETH/USDT`, `SOL/USDT`, `BNB/USDT`, `XRP/USDT`  
 > **Sàn giao dịch hỗ trợ:** Binance Spot Testnet & Bybit Spot Testnet (Chạy song song)
@@ -20,7 +20,7 @@ flowchart TD
     CloseTrade --> Stage2
     
     %% GIAI ĐOẠN 2
-    Stage2 --> MacroAI[Lấy nến 4H/1H BTC + Chỉ số Fear & Greed<br>Gửi Gemini 3.5 Flash đánh giá thị trường]
+    Stage2 --> MacroAI[Lấy nến 4H/1H BTC + Chỉ số Fear & Greed<br>Gửi Gemini AI (3.6 Flash + Fallback 3.5 Lite) đánh giá thị trường]
     MacroAI --> RegimeCheck{Chế độ thị trường?}
     
     RegimeCheck -- "BEARISH_DANGER<br>(BTC xả mạnh / Vỡ cấu trúc)" --> StopCycle[⛔ KHÓA TOÀN BỘ LỆNH MUA<br>Dừng quét để tránh đu đỉnh]
@@ -74,7 +74,7 @@ flowchart TD
 * **Dữ liệu đầu vào:**
   * **Chỉ số Crypto Fear & Greed Index** (Lấy từ Alternative.me): 0 – 100 điểm.
   * **Cấu trúc kỹ thuật Bitcoin (BTC/USDT):** Nến 4H, EMA 50, EMA 200, và 4 nến 1H gần nhất.
-* **Quyết định từ Gemini 3.5 Flash:**
+* **Quyết định từ Gemini AI (3.6 Flash + Fallback 3.5 Lite):**
   * 🔴 **`BEARISH_DANGER`** (`can_open_trades = False`): BTC xuất hiện nến xả mạnh, thủng hỗ trợ $\rightarrow$ **Khóa toàn bộ lệnh mua mới trong chu kỳ này**.
   * 🟡 **`CHOPPY_CAUTION`** (`can_open_trades = True`): BTC đi ngang, thị trường nhiễu $\rightarrow$ Cho phép quét Altcoin nhưng **nâng điểm AI yêu cầu lên $\ge 8/10$**.
   * 🟢 **`BULLISH_SAFE`** (`can_open_trades = True`): BTC giữ vững cấu trúc tăng lành mạnh $\rightarrow$ Cho phép quét với điểm AI chuẩn $\ge 7/10$.
@@ -104,7 +104,7 @@ Thay vì dùng tỷ lệ phần trăm cố định dễ bị quét râu nến, b
 
 ### 🧠 Giai đoạn 4: AI thẩm định nến vi mô & Khớp lệnh song song (`gemini_auditor.py` & `multi_exchange_trader.py`)
 
-1. **Thẩm định Price Action bằng Gemini 3.5 Flash:**
+1. **Thẩm định Price Action bằng Gemini AI (3.6 Flash / 3.5 Flash-Lite):**
    * Trích xuất 5 cây nến 1H gần nhất của coin có tín hiệu gửi cho Gemini.
    * AI kiểm tra: Có râu nến trên dài xả hàng không? Có dấu hiệu kiệt sức (Exhaustion)? Có cản cứng gần kề không?
    * Gemini trả về: Quyết định `APPROVE` / `REJECT` và Điểm tin cậy `confidence_score` (1 – 10).

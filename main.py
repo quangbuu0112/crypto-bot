@@ -42,7 +42,7 @@ def run_bot_cycle():
         tech_signal = analyze_technical_signal(symbol)
 
         if tech_signal:
-            print(f"🎯 [KỸ THUẬT MATCH] {symbol}. Đang gửi Gemini 3.5 Flash thẩm định...")
+            print(f"🎯 [KỸ THUẬT MATCH] {symbol}. Đang gửi Gemini AI thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
 
             ai_audit = audit_signal_with_gemini(
                 symbol=tech_signal['symbol'],

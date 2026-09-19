@@ -1,3 +1,4 @@
+import time
 from google import genai
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -53,19 +54,30 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
     3. Trả về 'APPROVE' nếu điểm tin cậy >= 7, ngược lại chọn 'REJECT'.
     """
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=GeminiAuditResult,
-                temperature=0.2, # Giữ nhiệt độ thấp để đánh giá khách quan
-            ),
-        )
-        # Ép kiểu dữ liệu trả về thành Pydantic Object
-        return GeminiAuditResult.model_validate_json(response.text)
-    except Exception as e:
-        print(f"❌ Lỗi khi gọi Gemini API thẩm định {symbol}: {e}")
-        return None
+    models_to_try = [
+        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash'),
+        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
+    ]
+
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=GeminiAuditResult,
+                    temperature=0.2, # Giữ nhiệt độ thấp để đánh giá khách quan
+                ),
+            )
+            # Ép kiểu dữ liệu trả về thành Pydantic Object
+            return GeminiAuditResult.model_validate_json(response.text)
+        except Exception as e:
+            last_error = e
+            print(f"[CANH BAO] [Auditor] Model {model_name} gap su co cho {symbol}: {e}. Dang chuyen sang model tiep theo...")
+            time.sleep(1)
+
+    print(f"[LOI] Khong the goi bat ky Gemini model nao de tham dinh {symbol}: {last_error}")
+    return None
     

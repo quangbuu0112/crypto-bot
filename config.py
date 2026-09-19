@@ -8,6 +8,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+# Cấu hình Model AI Gemini (Chính & Dự phòng)
+GEMINI_PRIMARY_MODEL = 'gemini-3.6-flash'        # Model chính: Flash thế hệ mới, hạn mức cao
+GEMINI_FALLBACK_MODEL = 'gemini-3.5-flash-lite'   # Model phụ: Siêu nhẹ, dự phòng khi model chính bận
+
 # Cấu hình sàn giao dịch Testnet
 BINANCE_TESTNET_API_KEY = os.getenv("BINANCE_TESTNET_API_KEY")
 BINANCE_TESTNET_SECRET = os.getenv("BINANCE_TESTNET_SECRET")

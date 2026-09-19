@@ -146,27 +146,38 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
        - Tác động: Cho phép mở lệnh Altcoin bình thường.
     """
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=MarketHealthReport,
-                temperature=0.1,
-            ),
-        )
-        report = MarketHealthReport.model_validate_json(response.text)
-        _cached_market_health = report
-        _last_check_time = now
-        return report
-    except Exception as e:
-        print(f"❌ Lỗi khi gọi Gemini Macro Gatekeeper: {e}")
-        # Fallback an toàn
-        return MarketHealthReport(
-            market_regime="CHOPPY_CAUTION",
-            can_open_trades=True,
-            min_confidence_score=7,
-            fng_summary=f"F&G: {fng_data['value']}/100 ({fng_data['classification']})",
-            summary=f"Lỗi gọi AI Gatekeeper: {e}"
-        )
+    models_to_try = [
+        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash'),
+        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
+    ]
+
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=MarketHealthReport,
+                    temperature=0.1,
+                ),
+            )
+            report = MarketHealthReport.model_validate_json(response.text)
+            _cached_market_health = report
+            _last_check_time = now
+            return report
+        except Exception as e:
+            last_error = e
+            print(f"[CANH BAO] [Gatekeeper] Model {model_name} gap su co: {e}. Dang chuyen sang model tiep theo...")
+            time.sleep(1)
+
+    print(f"[LOI] Khong the goi bat ky Gemini Macro Gatekeeper model nao: {last_error}")
+    # Fallback an toàn
+    return MarketHealthReport(
+        market_regime="CHOPPY_CAUTION",
+        can_open_trades=True,
+        min_confidence_score=7,
+        fng_summary=f"F&G: {fng_data['value']}/100 ({fng_data['classification']})",
+        summary=f"Loi goi AI Gatekeeper: {last_error}"
+    )
