@@ -13,6 +13,8 @@ c:\Code\
 ├── signal_engine.py        # Phân tích tín hiệu kỹ thuật (EMA, RSI, ADX, Volume, ATR)
 ├── gemini_auditor.py       # Thẩm định tín hiệu từng coin bằng Gemini AI
 ├── paper_trader.py         # Quản lý lệnh paper trade (mở/đóng lệnh)
+├── multi_exchange_trader.py# Điều phối đặt lệnh song song (Binance + Bybit Testnet)
+├── SYSTEM_WORKFLOW.md      # Tài liệu tổng quan toàn bộ quy trình vận hành chi tiết
 ├── paper_trades.json       # Nhật ký lệnh (dữ liệu runtime)
 ├── requirements.txt        # Các thư viện cần cài
 ├── .env                    # API keys (không commit lên git)

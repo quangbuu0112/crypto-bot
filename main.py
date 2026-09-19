@@ -69,20 +69,17 @@ def run_bot_cycle():
                 )
 
                 if trade:
-                    macro_section = (
-                        f"🌐 *MACRO GATEKEEPER*\n"
-                        f"• *Chế độ thị trường:* `{market_health.market_regime}`\n"
-                        f"• *Tâm lý F&G:* {market_health.fng_summary}\n"
-                        f"• *Nhận định BTC:* {market_health.summary}\n\n"
+                    macro_info = (
+                        f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
                         if market_health else ""
                     )
                     msg = (
                         f"📝 *MỞ LỆNH MUA MÔ PHỎNG (PAPER TRADE)* 📝\n\n"
+                        f"{macro_info}"
                         f"• *Cặp coin:* `{symbol}`\n"
                         f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
                         f"• *Mục tiêu TP (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:.2f}`\n"
                         f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:.2f}`\n\n"
-                        f"{macro_section}"
                         f"🧠 *AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: {min_required_score})\n"
                         f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
                         f"📌 *Hệ thống đã tự động lưu lệnh để theo dõi kết quả thực tế!*"
@@ -93,21 +90,8 @@ def run_bot_cycle():
         time.sleep(1)
 
 def monitor_paper_trades():
-    """Kiểm tra xem có lệnh mô phỏng nào khớp TP/SL không để báo Telegram kèm bối cảnh MACRO GATEKEEPER"""
+    """Kiểm tra xem có lệnh mô phỏng nào khớp TP/SL không để báo Telegram"""
     closed_events = check_and_update_paper_trades()
-    if not closed_events:
-        return
-
-    # Lấy thông tin Macro Gatekeeper để đính kèm vào tin nhắn báo khớp lệnh
-    market_health = check_market_health()
-    macro_section = (
-        f"🌐 *MACRO GATEKEEPER*\n"
-        f"• *Chế độ thị trường:* `{market_health.market_regime}`\n"
-        f"• *Tâm lý F&G:* {market_health.fng_summary}\n"
-        f"• *Nhận định BTC:* {market_health.summary}\n\n"
-        if market_health else ""
-    )
-
     for trade, result_title in closed_events:
         msg = (
             f"🔔 *KẾT QUẢ GIAO DỊCH MÔ PHỎNG* 🔔\n\n"
@@ -115,18 +99,14 @@ def monitor_paper_trades():
             f"• *Kết quả:* {result_title}\n"
             f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
             f"• *Giá Khớp Đóng:* `${trade['close_price']:.2f}`\n"
-            f"• *PnL:* `{trade['pnl_pct']:+.2f}%`\n"
+            f"• *PnL:* `{trade['pnl_pct']:+.1f}%`\n"
             f"• *Điểm AI ban đầu:* `{trade['ai_score']}/10`\n\n"
-            f"{macro_section}"
             f"📊 *Dữ liệu đối chứng đã được lưu vào nhật ký Paper Trading.*"
         )
         print(f"📢 [PAPER TRADE CLOSED] {trade['symbol']} -> PnL: {trade['pnl_pct']}%")
         send_telegram_alert(msg)
 
 def main():
-    import sys
-    run_once = "--once" in sys.argv
-
     print("==================================================")
     print("🤖 HYBRID PAPER TRADING BOT (PYTHON + GEMINI 3.5) ")
     print("==================================================")
@@ -144,10 +124,6 @@ def main():
         except Exception as e:
             print(f"❌ Lỗi hệ thống: {e}")
             
-        if run_once:
-            print("\n✅ Đã hoàn thành 1 chu kỳ test (--once). Hệ thống hoạt động chính xác!")
-            break
-
         print(f"😴 Chờ {config.SLEEP_INTERVAL_SECONDS // 60} phút cho lần quét tiếp theo...")
         time.sleep(config.SLEEP_INTERVAL_SECONDS)
 
