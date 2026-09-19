@@ -1,6 +1,7 @@
 import ccxt
 import pandas as pd
 import pandas_ta as ta
+import config
 
 exchange = ccxt.binance({'enableRateLimit': True})
 
@@ -26,11 +27,13 @@ def analyze_technical_signal(symbol: str):
     if df_4h is None or df_1h is None:
         return None
 
-    # 1. KIỂM TRA KHUNG 4H (BỘ LỌC XU HƯỚNG)
+    # 1. KIỂM TRA KHUNG 4H (BỘ LỌC XU HƯỚNG TREND ALIGNMENT)
+    df_4h['EMA_50_4h'] = ta.ema(df_4h['close'], length=50)
     df_4h['EMA_200_4h'] = ta.ema(df_4h['close'], length=200)
-    is_uptrend_4h = df_4h['close'].iloc[-2] > df_4h['EMA_200_4h'].iloc[-2]
+    past_4h = df_4h.iloc[-2]
+    is_uptrend_4h = (past_4h['close'] > past_4h['EMA_50_4h']) and (past_4h['EMA_50_4h'] > past_4h['EMA_200_4h'])
 
-    # Nếu 4H không phải Uptrend -> Bỏ qua ngay
+    # Nếu 4H không thỏa mãn Trend Alignment (Giá > EMA50 > EMA200) -> Bỏ qua ngay
     if not is_uptrend_4h:
         return None
 
@@ -41,6 +44,7 @@ def analyze_technical_signal(symbol: str):
     adx_df = ta.adx(df_1h['high'], df_1h['low'], df_1h['close'], length=14)
     df_1h['ADX_14_1h'] = adx_df['ADX_14']
     df_1h['VOL_MA20_1h'] = df_1h['volume'].rolling(20).mean()
+    df_1h['ATR_14_1h'] = ta.atr(df_1h['high'], df_1h['low'], df_1h['close'], length=config.ATR_LENGTH)
 
     # Nến 1H vừa đóng cửa (iloc[-2])
     past_candle = df_1h.iloc[-2]
@@ -52,6 +56,21 @@ def analyze_technical_signal(symbol: str):
 
     # Nếu thỏa mãn toàn bộ bộ lọc Kỹ thuật
     if cond_ema and cond_rsi and cond_adx and cond_vol:
+        entry_price = float(past_candle['close'])
+        atr_val = float(past_candle['ATR_14_1h']) if pd.notna(past_candle['ATR_14_1h']) else 0.0
+
+        # Tính Stop Loss / Take Profit theo ATR hoặc cấu hình nới rộng
+        if config.USE_ATR_STOPS and atr_val > 0:
+            stop_loss = entry_price - (config.ATR_SL_MULTIPLIER * atr_val)
+            take_profit = entry_price + (config.ATR_TP_MULTIPLIER * atr_val)
+            sl_pct = (entry_price - stop_loss) / entry_price
+            tp_pct = (take_profit - entry_price) / entry_price
+        else:
+            sl_pct = config.STOP_LOSS_PCT
+            tp_pct = config.TAKE_PROFIT_PCT
+            stop_loss = entry_price * (1 - sl_pct)
+            take_profit = entry_price * (1 + tp_pct)
+
         # Tóm tắt 5 nến 1H gần nhất làm chuỗi text cho Gemini
         last_5_candles = df_1h.iloc[-6:-1]
         candles_summary = ""
@@ -65,10 +84,15 @@ def analyze_technical_signal(symbol: str):
 
         return {
             "symbol": symbol,
-            "entry_price": float(past_candle['close']),
+            "entry_price": entry_price,
             "rsi": float(past_candle['RSI_1h']),
             "adx": float(past_candle['ADX_14_1h']),
             "vol_ratio": float(vol_ratio),
+            "atr": atr_val,
+            "stop_loss": float(stop_loss),
+            "take_profit": float(take_profit),
+            "sl_pct": float(sl_pct),
+            "tp_pct": float(tp_pct),
             "candles_summary": candles_summary,
             "closed_time": past_candle['timestamp'].strftime('%Y-%m-%d %H:%M UTC')
         }

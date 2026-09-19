@@ -1,0 +1,57 @@
+{
+  "description": "OHLCV metadata của 5 coin phổ biến nhất (24 tháng) để phân tích mô hình nến",
+  "generated_at": "2026-09-18 17:12:08 UTC",
+  "months": 24,
+  "timeframes": [
+    "4h"
+  ],
+  "symbols": [
+    "BTC/USDT",
+    "ETH/USDT",
+    "SOL/USDT",
+    "BNB/USDT",
+    "XRP/USDT"
+  ],
+  "files": [
+    {
+      "file": "btc_usdt_4h.json",
+      "symbol": "BTC/USDT",
+      "timeframe": "4h",
+      "total_candles": 4380,
+      "from": "2024-09-18 20:00:00",
+      "to": "2026-09-18 16:00:00"
+    },
+    {
+      "file": "eth_usdt_4h.json",
+      "symbol": "ETH/USDT",
+      "timeframe": "4h",
+      "total_candles": 4380,
+      "from": "2024-09-18 20:00:00",
+      "to": "2026-09-18 16:00:00"
+    },
+    {
+      "file": "sol_usdt_4h.json",
+      "symbol": "SOL/USDT",
+      "timeframe": "4h",
+      "total_candles": 4380,
+      "from": "2024-09-18 20:00:00",
+      "to": "2026-09-18 16:00:00"
+    },
+    {
+      "file": "bnb_usdt_4h.json",
+      "symbol": "BNB/USDT",
+      "timeframe": "4h",
+      "total_candles": 4380,
+      "from": "2024-09-18 20:00:00",
+      "to": "2026-09-18 16:00:00"
+    },
+    {
+      "file": "xrp_usdt_4h.json",
+      "symbol": "XRP/USDT",
+      "timeframe": "4h",
+      "total_candles": 4380,
+      "from": "2024-09-18 20:00:00",
+      "to": "2026-09-18 16:00:00"
+    }
+  ]
+}

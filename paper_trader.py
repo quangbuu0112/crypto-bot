@@ -1,6 +1,10 @@
 import json
 import os
+import time
+from datetime import datetime, timezone
 import ccxt
+import config
+import multi_exchange_trader
 
 TRADES_FILE = "paper_trades.json"
 exchange = ccxt.binance({'enableRateLimit': True})
@@ -18,25 +22,45 @@ def save_trades(trades):
     with open(TRADES_FILE, 'w', encoding='utf-8') as f:
         json.dump(trades, f, ensure_ascii=False, indent=2)
 
-def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = 0.01, tp_pct: float = 0.015, ai_score: int = 0):
-    """Mở một lệnh mua mô phỏng mới"""
+def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_pct: float = None, ai_score: int = 0, stop_loss: float = None, take_profit: float = None):
+    """Mở một lệnh mua mô phỏng mới với SL/TP động theo ATR hoặc %"""
     trades = load_trades()
     
     # Kiểm tra xem coin này đã có lệnh nào đang chạy chưa (tránh trùng lệnh)
     for t in trades:
         if t['symbol'] == symbol and t['status'] == 'OPEN':
             return None # Đã có lệnh đang mở, không vào thêm
-            
-    trade_id = f"{symbol}_{int(os.times().elapsed)}"
+
+    # Xác định mức giá Cắt lỗ và Chốt lời
+    calculated_sl = stop_loss if stop_loss is not None else entry_price * (1 - (sl_pct if sl_pct is not None else config.STOP_LOSS_PCT))
+    calculated_tp = take_profit if take_profit is not None else entry_price * (1 + (tp_pct if tp_pct is not None else config.TAKE_PROFIT_PCT))
+    actual_sl_pct = (entry_price - calculated_sl) / entry_price * 100
+    actual_tp_pct = (calculated_tp - entry_price) / entry_price * 100
+
+    trade_id = f"{symbol.replace('/', '_')}_{int(time.time())}"
+    opened_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+
+    # Đặt lệnh Mua song song lên tất cả các sàn Testnet được kích hoạt (Binance, Bybit)
+    exchange_orders = {}
+    if getattr(config, "USE_TESTNET", True):
+        usdt_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
+        multi_res = multi_exchange_trader.place_multi_market_buy(symbol, usdt_amount=usdt_amt)
+        for ex_name, o_data in multi_res.items():
+            if o_data.get('success'):
+                exchange_orders[ex_name] = o_data.get('order_id')
+
     new_trade = {
         "id": trade_id,
         "symbol": symbol,
-        "entry_price": entry_price,
-        "stop_loss": entry_price * (1 - sl_pct),
-        "take_profit": entry_price * (1 + tp_pct),
+        "entry_price": round(entry_price, 4),
+        "stop_loss": round(calculated_sl, 4),
+        "take_profit": round(calculated_tp, 4),
+        "sl_pct": round(actual_sl_pct, 2),
+        "tp_pct": round(actual_tp_pct, 2),
         "ai_score": ai_score,
         "status": "OPEN",
-        "opened_at": os.popen('date').read().strip() if os.name != 'nt' else ""
+        "opened_at": opened_at,
+        "exchange_orders": exchange_orders
     }
     trades.append(new_trade)
     save_trades(trades)
@@ -62,14 +86,34 @@ def check_and_update_paper_trades():
             if current_price >= t['take_profit']:
                 t['status'] = 'CLOSED_TP'
                 t['close_price'] = current_price
-                t['pnl_pct'] = +1.5
+                pnl_pct = (current_price - t['entry_price']) / t['entry_price'] * 100
+                t['pnl_pct'] = round(pnl_pct, 2)
+                t['closed_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+
+                # Bán coin trên tất cả các sàn Testnet được kích hoạt
+                if getattr(config, "USE_TESTNET", True):
+                    sell_results = multi_exchange_trader.place_multi_market_sell(symbol)
+                    t['exchange_close_orders'] = {
+                        k: v.get('order_id') for k, v in sell_results.items() if v.get('success')
+                    }
+
                 closed_events.append((t, "✅ CHỐT LỜI (TAKE PROFIT)"))
 
             # Kiểm tra dính Stop Loss
             elif current_price <= t['stop_loss']:
                 t['status'] = 'CLOSED_SL'
                 t['close_price'] = current_price
-                t['pnl_pct'] = -1.0
+                pnl_pct = (current_price - t['entry_price']) / t['entry_price'] * 100
+                t['pnl_pct'] = round(pnl_pct, 2)
+                t['closed_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+
+                # Bán coin trên tất cả các sàn Testnet được kích hoạt
+                if getattr(config, "USE_TESTNET", True):
+                    sell_results = multi_exchange_trader.place_multi_market_sell(symbol)
+                    t['exchange_close_orders'] = {
+                        k: v.get('order_id') for k, v in sell_results.items() if v.get('success')
+                    }
+
                 closed_events.append((t, "❌ CẮT LỖ (STOP LOSS)"))
 
         except Exception as e:

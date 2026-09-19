@@ -23,10 +23,14 @@ class GeminiAuditResult(BaseModel):
     )
 
 
-def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: float, vol_ratio: float, candles_summary: str) -> GeminiAuditResult:
+def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: float, vol_ratio: float, candles_summary: str, stop_loss: float = None, take_profit: float = None, atr: float = None) -> GeminiAuditResult:
     """
-    Gửi bối cảnh giao dịch sang Gemini 2.5 Flash để thẩm định lại rủi ro.
+    Gửi bối cảnh giao dịch sang Gemini 3.5 Flash để thẩm định lại rủi ro.
     """
+    sl_info = f"    • Dự kiến Cắt lỗ (SL): ${stop_loss:.2f} (-{(entry_price - stop_loss)/entry_price*100:.1f}%)\n" if stop_loss else ""
+    tp_info = f"    • Dự kiến Chốt lời (TP): ${take_profit:.2f} (+{(take_profit - entry_price)/entry_price*100:.1f}%)\n" if take_profit else ""
+    atr_info = f"    • Biến động ATR(14): ${atr:.2f} ({atr/entry_price*100:.1f}% giá)\n" if atr and atr > 0 else ""
+
     prompt = f"""
     Bạn là một Chuyên gia Quản trị Rủi ro (Quant Risk Manager) trong thị trường Crypto.
     Hệ thống thuật toán Python vừa phát hiện một điểm vào lệnh MUA (BUY SIGNAL) cho cặp `{symbol}`.
@@ -35,10 +39,10 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
     === THÔNG SỐ KỸ THUẬT VỪA KÍCH HOẠT ===
     • Cặp giao dịch: {symbol}
     • Giá vào lệnh (Entry): ${entry_price:.2f}
-    • Chỉ số RSI (1H): {rsi:.1f}
+{sl_info}{tp_info}{atr_info}    • Chỉ số RSI (1H): {rsi:.1f}
     • Chỉ số ADX (1H - Độ mạnh xu hướng): {adx:.1f}
     • Khối lượng nến tín hiệu: Gấp {vol_ratio:.2f} lần trung bình 20 phiên.
-    • Lọc xu hướng 4H: UPTREND (Giá đang nằm trên đường EMA 200).
+    • Lọc xu hướng 4H: UPTREND MẠNH (Trend Alignment: Giá > EMA 50 > EMA 200).
 
     === DIỄN BIẾN 5 CÂY NẾN 1H GẦN NHẤT (Mở - Đỉnh - Đáy - Đóng) ===
     {candles_summary}
