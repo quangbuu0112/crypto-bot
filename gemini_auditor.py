@@ -28,19 +28,23 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
     """
     Gửi bối cảnh giao dịch sang Gemini 3.5 Flash để thẩm định lại rủi ro.
     """
-    sl_info = f"    • Dự kiến Cắt lỗ (SL): ${stop_loss:.2f} (-{(entry_price - stop_loss)/entry_price*100:.1f}%)\n" if stop_loss else ""
-    tp_info = f"    • Dự kiến Chốt lời (TP): ${take_profit:.2f} (+{(take_profit - entry_price)/entry_price*100:.1f}%)\n" if take_profit else ""
+    tp1_mult = getattr(config, 'ATR_TP1_MULTIPLIER', 1.2)
+    tp2_mult = getattr(config, 'ATR_TP2_MULTIPLIER', 3.0)
+    sl_mult = getattr(config, 'ATR_SL_MULTIPLIER', 1.4)
+
+    sl_info = f"    • Dự kiến Cắt lỗ (SL ban đầu): ${stop_loss:.2f} (-{(entry_price - stop_loss)/entry_price*100:.1f}% | {sl_mult}x ATR)\n" if stop_loss else ""
+    tp_info = f"    • Dự kiến Chốt lời (TP1/TP2): ${take_profit:.2f} (+{(take_profit - entry_price)/entry_price*100:.1f}% | TP1:{tp1_mult}x, TP2:{tp2_mult}x ATR)\n" if take_profit else ""
     atr_info = f"    • Biến động ATR(14): ${atr:.2f} ({atr/entry_price*100:.1f}% giá)\n" if atr and atr > 0 else ""
 
     prompt = f"""
-    Bạn là một Chuyên gia Quản trị Rủi ro (Quant Risk Manager) trong thị trường Crypto.
-    Hệ thống thuật toán Python vừa phát hiện một điểm vào lệnh MUA (BUY SIGNAL) cho cặp `{symbol}`.
-    Nhiệm vụ của bạn là kiểm tra lại BỐI CẢNH 5 nến gần nhất và thẩm định xem có bẫy tăng giá (Fakeout) hay không.
+    Bạn là một Chuyên gia Quản trị Rủi ro Quỹ Định Lượng (Quant Portfolio Risk Manager) theo phong cách SNIPER QUALITY (Bắn tỉa chất lượng cao).
+    Hệ thống vừa phát hiện một điểm vào lệnh MUA (BUY SIGNAL) cho cặp `{symbol}`.
+    Mục tiêu tối thượng: THÀ BỎ LỠ CƠ HỘI CHỨ TUYỆT ĐỐI KHÔNG VÀO LỆNH XẤU / RỦI RO CAO.
 
     === THÔNG SỐ KỸ THUẬT VỪA KÍCH HOẠT ===
     • Cặp giao dịch: {symbol}
     • Giá vào lệnh (Entry): ${entry_price:.2f}
-{sl_info}{tp_info}{atr_info}    • Chỉ số RSI (1H): {rsi:.1f}
+{sl_info}{tp_info}{atr_info}    • Chỉ số RSI (1H): {rsi:.1f} (Vùng tối ưu: 42 - 65)
     • Chỉ số ADX (1H - Độ mạnh xu hướng): {adx:.1f}
     • Khối lượng nến tín hiệu: Gấp {vol_ratio:.2f} lần trung bình 20 phiên.
     • Lọc xu hướng 4H: UPTREND MẠNH (Trend Alignment: Giá > EMA 50 > EMA 200).
@@ -48,10 +52,10 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
     === DIỄN BIẾN 5 CÂY NẾN 1H GẦN NHẤT (Mở - Đỉnh - Đáy - Đóng) ===
     {candles_summary}
 
-    === QUY TRÌNH THẨM ĐỊNH ===
-    1. Kiểm tra 5 nến gần nhất xem có nến nào bị bán tháo rút chân trên rất dài (Râu nến trên lớn gấp đôi thân) hay không.
-    2. Đánh giá đà tăng có bị kiệt sức (Exhaustion) không.
-    3. Trả về 'APPROVE' nếu điểm tin cậy >= 7, ngược lại chọn 'REJECT'.
+    === TIÊU CHÍ THẨM ĐỊNH SNIPER QUALITY (KHẮT KHE) ===
+    1. KIỂM TRA RÂU NẾN & BẪY GIÁ: Nếu 1-2 nến gần nhất có râu trên dài từ chối giá (Selling Wick) hoặc mô hình nến Shooting Star / Bearish Engulfing -> Chọn ngay 'REJECT' (Điểm < 7).
+    2. KIỂM TRA ĐÀ TĂNG: Nếu giá đã tăng dốc đứng liên tục 4-5 nến xanh mà không có nhịp nghỉ (Overextended / Đu đỉnh) -> Chọn ngay 'REJECT' (Điểm < 7).
+    3. ĐIỀU KIỆN 'APPROVE': Chỉ phê duyệt 'APPROVE' khi cấu trúc nến tăng khỏe, tích lũy nén chặt, có lực đẩy dòng tiền rõ ràng và điểm tin cậy đạt từ 8 ĐẾN 10 ĐIỂM (>= 8/10).
     """
 
     models_to_try = [

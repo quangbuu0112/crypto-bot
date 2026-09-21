@@ -102,14 +102,18 @@ def run_bot_cycle():
             print("   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
             continue
 
-        # Bước 5: Quản trị vị thế & Mở lệnh
+        # Bước 5: Quản trị vị thế & Mở lệnh Sniper Quality
         trade = open_paper_trade(
             symbol=symbol,
             entry_price=tech_signal['entry_price'],
             stop_loss=tech_signal.get('stop_loss'),
             take_profit=tech_signal.get('take_profit'),
+            take_profit_1=tech_signal.get('take_profit_1'),
+            take_profit_2=tech_signal.get('take_profit_2'),
             sl_pct=tech_signal.get('sl_pct'),
             tp_pct=tech_signal.get('tp_pct'),
+            tp1_pct=tech_signal.get('tp1_pct'),
+            tp2_pct=tech_signal.get('tp2_pct'),
             ai_score=ai_audit.confidence_score,
             macro_regime=market_health.market_regime if market_health else "N/A",
             fng_summary=market_health.fng_summary if market_health else "N/A",
@@ -117,21 +121,24 @@ def run_bot_cycle():
         )
 
         if trade:
-            print(f"   └─ Bước 5 (Thực thi lệnh): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP: ${trade['take_profit']:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+            tp1_val = trade.get('take_profit_1', trade['take_profit'])
+            tp2_val = trade.get('take_profit_2', trade['take_profit'])
+            print(f"   └─ Bước 5 (Thực thi Sniper): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
             macro_info = (
                 f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
                 if market_health else ""
             )
             msg = (
-                f"📝 *MỞ LỆNH MUA MÔ PHỎNG (PAPER TRADE)* 📝\n\n"
+                f"🎯 *MỞ LỆNH MUA SNIPER QUALITY* 🎯\n\n"
                 f"{macro_info}"
                 f"• *Cặp coin:* `{symbol}`\n"
-                f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
-                f"• *Mục tiêu TP (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:.2f}`\n"
-                f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:.2f}`\n\n"
-                f"🧠 *AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: {min_required_score})\n"
+                f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
+                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt 50% & kéo SL về Entry)\n"
+                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng 50% còn lại)\n"
+                f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
+                f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: >={min_required_score})\n"
                 f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                f"📌 *Hệ thống đã tự động lưu lệnh để theo dõi kết quả thực tế!*"
+                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, bảo toàn vốn tuyệt đối!"
             )
             send_telegram_alert(msg)
         else:
@@ -140,20 +147,31 @@ def run_bot_cycle():
         time.sleep(1)
 
 def monitor_paper_trades():
-    """Kiểm tra xem có lệnh mô phỏng nào khớp TP/SL không để báo Telegram"""
+    """Kiểm tra xem có lệnh mô phỏng nào khớp TP1/TP2/SL không để báo Telegram"""
     closed_events = check_and_update_paper_trades()
     for trade, result_title in closed_events:
-        msg = (
-            f"🔔 *KẾT QUẢ GIAO DỊCH MÔ PHỎNG* 🔔\n\n"
-            f"• *Cặp coin:* `{trade['symbol']}`\n"
-            f"• *Kết quả:* {result_title}\n"
-            f"• *Giá Mua (Entry):* `${trade['entry_price']:.2f}`\n"
-            f"• *Giá Khớp Đóng:* `${trade['close_price']:.2f}`\n"
-            f"• *PnL:* `{trade['pnl_pct']:+.1f}%`\n"
-            f"• *Điểm AI ban đầu:* `{trade['ai_score']}/10`\n\n"
-            f"📊 *Dữ liệu đối chứng đã được lưu vào nhật ký Paper Trading.*"
-        )
-        print(f"📢 [PAPER TRADE CLOSED] {trade['symbol']} -> PnL: {trade['pnl_pct']}%")
+        # Nếu là sự kiện TP1 (lệnh vẫn đang mở tiếp tục gồng)
+        if trade.get("status") == "OPEN":
+            msg = (
+                f"🔔 *CẬP NHẬT TRẠNG THÁI VỊ THẾ* 🔔\n\n"
+                f"• *Cặp coin:* `{trade['symbol']}`\n"
+                f"• *Sự kiện:* {result_title}\n"
+                f"• *Giá Mua:* `${trade['entry_price']:,.2f}` ➔ *Đã chốt 50% tại:* `${trade.get('tp1_price', 0):,.2f}`\n"
+                f"• *Mục tiêu tiếp theo (TP2):* `${trade.get('take_profit_2', 0):,.2f}`\n\n"
+                f"🛡️ *Stop Loss đã được dời về Entry: Rủi ro bằng 0%!*"
+            )
+        else:
+            msg = (
+                f"🔔 *KẾT QUẢ ĐÓNG VỊ THẾ* 🔔\n\n"
+                f"• *Cặp coin:* `{trade['symbol']}`\n"
+                f"• *Kết quả:* {result_title}\n"
+                f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
+                f"• *Giá Khớp Đóng:* `${trade.get('close_price', 0):,.2f}`\n"
+                f"• *Tổng PnL:* `{trade.get('pnl_pct', 0):+.2f}%`\n"
+                f"• *Điểm AI ban đầu:* `{trade.get('ai_score', 0)}/10`\n\n"
+                f"📊 *Dữ liệu đã được lưu vào nhật ký Paper Trading.*"
+            )
+        print(f"📢 [PAPER TRADE EVENT] {trade['symbol']} -> {result_title}")
         send_telegram_alert(msg)
 
 def main():

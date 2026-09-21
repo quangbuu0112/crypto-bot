@@ -80,43 +80,67 @@ def analyze_technical_signal(symbol: str) -> tuple:
     vol_ma20 = float(past_candle['VOL_MA20_1h'])
     vol_ratio = (vol_1h / vol_ma20) if vol_ma20 > 0 else 0.0
 
+    rsi_min = getattr(config, 'RSI_MIN', 42)
+    rsi_max = getattr(config, 'RSI_MAX', 65)
+    adx_min = getattr(config, 'ADX_MIN', 20)
+    vol_min = getattr(config, 'VOL_RATIO_MIN', 1.0)
+
+    atr_val = float(past_candle['ATR_14_1h']) if pd.notna(past_candle['ATR_14_1h']) else 0.0
+
     cond_ema = close_1h > ema20_1h
-    cond_rsi = 50 < rsi_1h < 68
-    cond_adx = adx_1h > 20
-    cond_vol = vol_1h > (1.1 * vol_ma20)
+    cond_rsi = rsi_min <= rsi_1h <= rsi_max
+    cond_adx = adx_1h >= adx_min
+    cond_vol = vol_ratio >= vol_min
+    # Tránh mua đu đỉnh khi giá đã phóng quá 1.5x ATR tính từ EMA20
+    cond_not_extended = True
+    if atr_val > 0 and (close_1h - ema20_1h) > 1.5 * atr_val:
+        cond_not_extended = False
 
     reject_reasons_1h = []
     if not cond_ema:
         reject_reasons_1h.append(f"Giá 1H (${close_1h:,.2f}) <= EMA20 (${ema20_1h:,.2f})")
     if not cond_rsi:
-        if rsi_1h <= 50:
-            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) <= 50 (Lực mua yếu, yêu cầu 50-68)")
+        if rsi_1h < rsi_min:
+            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) < {rsi_min} (Lực mua yếu)")
         else:
-            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) >= 68 (Quá mua / Overbought, rủi ro đu đỉnh)")
+            reject_reasons_1h.append(f"RSI 1H ({rsi_1h:.1f}) > {rsi_max} (Quá mua / Overbought, rủi ro đu đỉnh)")
     if not cond_adx:
-        reject_reasons_1h.append(f"ADX 1H ({adx_1h:.1f}) <= 20 (Xung lực xu hướng yếu / Sideway)")
+        reject_reasons_1h.append(f"ADX 1H ({adx_1h:.1f}) < {adx_min} (Xung lực xu hướng yếu / Sideway)")
     if not cond_vol:
-        reject_reasons_1h.append(f"Volume ({vol_ratio:.2f}x VolMA) chưa đạt bùng nổ (yêu cầu > 1.1x)")
+        reject_reasons_1h.append(f"Volume ({vol_ratio:.2f}x VolMA) < {vol_min}x")
+    if not cond_not_extended:
+        reject_reasons_1h.append(f"Giá phóng quá xa EMA20 (+{(close_1h - ema20_1h)/atr_val:.1f}x ATR - rủi ro đu ngọn nến)")
 
-    if cond_ema and cond_rsi and cond_adx and cond_vol:
+    if cond_ema and cond_rsi and cond_adx and cond_vol and cond_not_extended:
         diagnostics["step3_trigger_1h"] = {
             "status": "PASS",
-            "detail": f"Thỏa mãn toàn bộ: Giá > EMA20, RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Volume={vol_ratio:.2f}x VolMA."
+            "detail": f"Thỏa mãn toàn bộ tiêu chuẩn Sniper: Giá > EMA20, RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Volume={vol_ratio:.2f}x."
         }
 
         entry_price = close_1h
-        atr_val = float(past_candle['ATR_14_1h']) if pd.notna(past_candle['ATR_14_1h']) else 0.0
+        use_atr = getattr(config, 'USE_ATR_STOPS', True)
+        sl_mult = getattr(config, 'ATR_SL_MULTIPLIER', 1.4)
+        tp1_mult = getattr(config, 'ATR_TP1_MULTIPLIER', 1.2)
+        tp2_mult = getattr(config, 'ATR_TP2_MULTIPLIER', 3.0)
 
-        if config.USE_ATR_STOPS and atr_val > 0:
-            stop_loss = entry_price - (config.ATR_SL_MULTIPLIER * atr_val)
-            take_profit = entry_price + (config.ATR_TP_MULTIPLIER * atr_val)
+        if use_atr and atr_val > 0:
+            stop_loss = entry_price - (sl_mult * atr_val)
+            take_profit_1 = entry_price + (tp1_mult * atr_val)
+            take_profit_2 = entry_price + (tp2_mult * atr_val)
+            take_profit = take_profit_2 # Mốc chốt tối đa
             sl_pct = (entry_price - stop_loss) / entry_price
-            tp_pct = (take_profit - entry_price) / entry_price
+            tp1_pct = (take_profit_1 - entry_price) / entry_price
+            tp2_pct = (take_profit_2 - entry_price) / entry_price
+            tp_pct = tp2_pct
         else:
             sl_pct = config.STOP_LOSS_PCT
             tp_pct = config.TAKE_PROFIT_PCT
             stop_loss = entry_price * (1 - sl_pct)
-            take_profit = entry_price * (1 + tp_pct)
+            take_profit_1 = entry_price * (1 + tp_pct * 0.5)
+            take_profit_2 = entry_price * (1 + tp_pct)
+            take_profit = take_profit_2
+            tp1_pct = tp_pct * 0.5
+            tp2_pct = tp_pct
 
         last_5_candles = df_1h.iloc[-6:-1]
         candles_summary = ""
@@ -134,8 +158,12 @@ def analyze_technical_signal(symbol: str) -> tuple:
             "vol_ratio": float(vol_ratio),
             "atr": atr_val,
             "stop_loss": float(stop_loss),
+            "take_profit_1": float(take_profit_1),
+            "take_profit_2": float(take_profit_2),
             "take_profit": float(take_profit),
             "sl_pct": float(sl_pct),
+            "tp1_pct": float(tp1_pct),
+            "tp2_pct": float(tp2_pct),
             "tp_pct": float(tp_pct),
             "candles_summary": candles_summary,
             "closed_time": past_candle['timestamp'].strftime('%Y-%m-%d %H:%M UTC')

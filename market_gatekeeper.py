@@ -137,13 +137,13 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
        - Hoặc BTC nằm dưới cả EMA50 và EMA200 trong xu hướng giảm mạnh.
        - Tác động: Khóa toàn bộ lệnh mua Altcoin vì Altcoin sẽ sập mạnh hơn BTC!
 
-    2. 'CHOPPY_CAUTION' (can_open_trades = True, min_confidence_score = 8):
+    2. 'CHOPPY_CAUTION' (can_open_trades = True, min_confidence_score = 9):
        - BTC đang đi ngang, nến doji râu hai đầu, hoặc chỉ số F&G ở mức Quá Tham Lam (> 80) dễ có điều chỉnh giật râu.
-       - Tác động: Chỉ cho phép vào lệnh Altcoin nếu điểm chất lượng cực cao (>= 8/10).
+       - Tác động: Chỉ cho phép vào lệnh Altcoin nếu điểm chất lượng cực kỳ xuất sắc (>= 9/10).
 
-    3. 'BULLISH_SAFE' (can_open_trades = True, min_confidence_score = 7):
+    3. 'BULLISH_SAFE' (can_open_trades = True, min_confidence_score = 8):
        - BTC giữ vững cấu trúc tăng (Uptrend 4H) hoặc tích lũy lành mạnh, không có dấu hiệu xả hàng.
-       - Tác động: Cho phép mở lệnh Altcoin bình thường.
+       - Tác động: Cho phép mở lệnh Altcoin khi điểm AI Sniper đạt chuẩn (>= 8/10).
     """
 
     models_to_try = [
