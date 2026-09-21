@@ -129,16 +129,16 @@ def run_bot_cycle():
                 if market_health else ""
             )
             msg = (
-                f"🎯 *MỞ LỆNH MUA SNIPER QUALITY* 🎯\n\n"
+                f"🎯 *MỞ LỆNH MUA SNIPER BOOST* 🎯\n\n"
                 f"{macro_info}"
                 f"• *Cặp coin:* `{symbol}`\n"
                 f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
-                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt 50% & kéo SL về Entry)\n"
-                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng 50% còn lại)\n"
+                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt 30% & kéo SL về Entry)\n"
+                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng 70% còn lại ăn sóng lớn)\n"
                 f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
                 f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: >={min_required_score})\n"
                 f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, bảo toàn vốn tuyệt đối!"
+                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng 70% vị thế miễn phí rủi ro!"
             )
             send_telegram_alert(msg)
         else:

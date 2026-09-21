@@ -34,7 +34,8 @@ DEFAULT_PARAMS = {
     "use_partial_tp": getattr(config, "USE_PARTIAL_TP", True),
     "atr_sl_mult": getattr(config, "ATR_SL_MULTIPLIER", 1.4),
     "atr_tp1_mult": getattr(config, "ATR_TP1_MULTIPLIER", 1.2),
-    "atr_tp2_mult": getattr(config, "ATR_TP2_MULTIPLIER", 3.0),
+    "atr_tp2_mult": getattr(config, "ATR_TP2_MULTIPLIER", 3.5),
+    "tp1_share": getattr(config, "TP1_SHARE", 0.3),
     "stop_loss_pct": getattr(config, "STOP_LOSS_PCT", 0.02),
     "take_profit_pct": getattr(config, "TAKE_PROFIT_PCT", 0.04),
     "ema_trend_len": 200,                  # Chu kỳ EMA trend (1D)
@@ -136,6 +137,9 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
     if end_ts is not None:
         end_ts = pd.Timestamp(end_ts)
 
+    tp1_share = params.get("tp1_share", getattr(config, "TP1_SHARE", 0.3))
+    tp2_share = 1.0 - tp1_share
+
     for i in range(warmup, n - 1):
         ts_i = timestamps[i]
         if start_ts is not None and ts_i < start_ts:
@@ -175,7 +179,7 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
         tp2_pct = (tp2 - entry_price) / entry_price
         sl_pct = (entry_price - initial_sl) / entry_price
 
-        # 4. Mô phỏng chiến lược Sniper 2 giai đoạn
+        # 4. Mô phỏng chiến lược Sniper Boost 2 giai đoạn (30% TP1 + 70% TP2)
         tp1_hit = False
         current_sl = initial_sl
         result = "SIDEWAY"
@@ -192,7 +196,7 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
                     if highs[j] >= tp2:
                         result = "WIN"
                         exit_price = tp2
-                        pnl_pct = (0.5 * tp1_pct + 0.5 * tp2_pct) * 100
+                        pnl_pct = (tp1_share * tp1_pct + tp2_share * tp2_pct) * 100
                         break
                 elif lows[j] <= current_sl:
                     result = "LOSS"
@@ -200,24 +204,24 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
                     pnl_pct = -sl_pct * 100
                     break
             else:
-                # Giai đoạn 2: Đã chốt 50% tại TP1, SL đã về Entry (Risk = 0%)
+                # Giai đoạn 2: Đã chốt 30% tại TP1, SL đã về Entry (Risk = 0%)
                 if highs[j] >= tp2:
                     result = "WIN"
                     exit_price = tp2
-                    pnl_pct = (0.5 * tp1_pct + 0.5 * tp2_pct) * 100
+                    pnl_pct = (tp1_share * tp1_pct + tp2_share * tp2_pct) * 100
                     break
                 elif lows[j] <= current_sl:
-                    # Chạm Break-even Entry (ăn 50% TP1, 50% còn lại hòa vốn)
+                    # Chạm Break-even Entry (ăn 30% TP1, 70% còn lại hòa vốn)
                     result = "WIN"
                     exit_price = entry_price
-                    pnl_pct = (0.5 * tp1_pct + 0.5 * 0.0) * 100
+                    pnl_pct = (tp1_share * tp1_pct + tp2_share * 0.0) * 100
                     break
 
         if result == "SIDEWAY":
             exit_price = closes[end - 1]
             rem_pct = (exit_price - entry_price) / entry_price
             if tp1_hit:
-                pnl_pct = (0.5 * tp1_pct + 0.5 * rem_pct) * 100
+                pnl_pct = (tp1_share * tp1_pct + tp2_share * rem_pct) * 100
                 result = "WIN" if pnl_pct > 0 else "LOSS"
             else:
                 pnl_pct = rem_pct * 100

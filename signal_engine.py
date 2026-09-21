@@ -121,7 +121,7 @@ def analyze_technical_signal(symbol: str) -> tuple:
         use_atr = getattr(config, 'USE_ATR_STOPS', True)
         sl_mult = getattr(config, 'ATR_SL_MULTIPLIER', 1.4)
         tp1_mult = getattr(config, 'ATR_TP1_MULTIPLIER', 1.2)
-        tp2_mult = getattr(config, 'ATR_TP2_MULTIPLIER', 3.0)
+        tp2_mult = getattr(config, 'ATR_TP2_MULTIPLIER', 3.5)
 
         if use_atr and atr_val > 0:
             stop_loss = entry_price - (sl_mult * atr_val)

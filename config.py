@@ -26,15 +26,17 @@ ORDER_AMOUNT_USDT = 50.0                          # Số vốn mô phỏng USDT 
 # Danh sách coin quét tín hiệu
 SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT']
 
-# Cấu hình Chiến lược Bắn Tỉa Chất Lượng Cao (Sniper Quality Mode)
+# Cấu hình Chiến lược Bắn Tỉa Tối Ưu (Sniper Boost Quality Mode)
 MIN_AI_CONFIDENCE_SCORE = 8       # Điểm AI tối thiểu để duyệt lệnh (>= 8/10)
 USE_PARTIAL_TP = True             # Bật cơ chế chốt lời 2 giai đoạn (TP1 + TP2)
 USE_ATR_STOPS = True              # Sử dụng SL/TP động theo biến động thị trường ATR
 ATR_LENGTH = 14                   # Chu kỳ tính ATR
 
-ATR_SL_MULTIPLIER = 1.4           # Cắt lỗ ban đầu = Entry - 1.4 * ATR (khoảng 1.5% - 2.2%)
-ATR_TP1_MULTIPLIER = 1.2          # Chốt lời TP1 = Entry + 1.2 * ATR (Chốt 50% vị thế, dời SL về Entry hòa vốn)
-ATR_TP2_MULTIPLIER = 3.0          # Chốt lời TP2 = Entry + 3.0 * ATR (Gồng 50% vị thế còn lại)
+ATR_SL_MULTIPLIER = 1.4           # Cắt lỗ ban đầu = Entry - 1.4 * ATR
+ATR_TP1_MULTIPLIER = 1.2          # Chốt lời TP1 = Entry + 1.2 * ATR (Chốt 30% vị thế, dời SL về Entry hòa vốn)
+ATR_TP2_MULTIPLIER = 3.5          # Chốt lời TP2 = Entry + 3.5 * ATR (Gồng 70% vị thế còn lại ăn sóng lớn)
+TP1_SHARE = 0.3                   # Tỷ trọng chốt ở TP1: 30%
+TP2_SHARE = 0.7                   # Tỷ trọng chốt ở TP2: 70%
 
 # Cấu hình bộ lọc kỹ thuật vùng mua Sniper
 RSI_MIN = 42                      # Ngưỡng dưới RSI (tránh thị trường quá yếu)

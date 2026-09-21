@@ -84,10 +84,10 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
 
 def check_and_update_paper_trades():
     """
-    Quét giá Binance thực tế để xử lý quy trình Sniper Quality:
-    1. Chạm TP1: Chốt lời 50% khối lượng, kéo Stop Loss về Entry hòa vốn.
-    2. Chạm TP2: Chốt lời toàn bộ 50% còn lại.
-    3. Đã chạm TP1 mà quay đầu về Entry: Đóng lệnh hòa vốn (giữ nguyên 50% lãi TP1).
+    Quét giá Binance thực tế để xử lý quy trình Sniper Boost:
+    1. Chạm TP1: Chốt lời 30% khối lượng, kéo Stop Loss về Entry hòa vốn (Rủi ro = 0%).
+    2. Chạm TP2: Chốt lời toàn bộ 70% còn lại để ăn trọn sóng lớn (+3.5x ATR).
+    3. Đã chạm TP1 mà quay đầu về Entry: Đóng 70% còn lại ở hòa vốn (giữ nguyên 30% lãi TP1).
     4. Chưa chạm TP1 mà chạm Stop Loss: Cắt lỗ ban đầu.
     """
     trades = load_trades()
@@ -97,6 +97,8 @@ def check_and_update_paper_trades():
         return []
 
     events = []
+    tp1_share = getattr(config, 'TP1_SHARE', 0.3)
+    tp2_share = getattr(config, 'TP2_SHARE', 0.7)
 
     for t in open_trades:
         symbol = t['symbol']
@@ -110,7 +112,7 @@ def check_and_update_paper_trades():
 
             # TRƯỜNG HỢP 1: CHƯA CHẠM TP1
             if not t.get('tp1_hit', False):
-                # 1A. Chạm TP1 -> Chốt 50% & Kéo SL về Entry
+                # 1A. Chạm TP1 -> Chốt 30% & Kéo SL về Entry hòa vốn
                 if current_price >= tp1_target:
                     t['tp1_hit'] = True
                     t['tp1_hit_at'] = now_str
@@ -119,7 +121,7 @@ def check_and_update_paper_trades():
 
                     events.append((
                         t,
-                        f"🎯 CHỐT LỜI 50% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}%)\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
+                        f"🎯 CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}%)\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
                     ))
 
                 # 1B. Chưa chạm TP1 mà chạm Stop Loss ban đầu
@@ -131,26 +133,26 @@ def check_and_update_paper_trades():
                     t['closed_at'] = now_str
                     events.append((t, f"🔴 CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}%)"))
 
-            # TRƯỜNG HỢP 2: ĐÃ CHỐT 50% TP1 (GỒNG 50% CÒN LẠI VỚI SL VỀ ENTRY)
+            # TRƯỜNG HỢP 2: ĐÃ CHỐT 30% TP1 (GỒNG 70% CÒN LẠI VỚI SL VỀ ENTRY)
             else:
-                # 2A. Tiếp tục bay lên chạm TP2 -> Chốt trọn vẹn
+                # 2A. Tiếp tục bay lên chạm TP2 -> Chốt trọn vẹn 70% còn lại
                 if current_price >= tp2_target:
                     t['status'] = 'CLOSED_TP2'
                     t['close_price'] = current_price
                     tp1_pnl = t.get('tp1_pct', 0)
                     tp2_pnl = (current_price - entry_price) / entry_price * 100
-                    t['pnl_pct'] = round(0.5 * tp1_pnl + 0.5 * tp2_pnl, 2)
+                    t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
                     t['closed_at'] = now_str
                     events.append((t, f"🏆 CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% TỔNG LÃI)"))
 
-                # 2B. Quay đầu cắn Entry hòa vốn -> Lệnh vẫn kết thúc có lãi (lãi 50% của TP1)
+                # 2B. Quay đầu cắn Entry hòa vốn -> Lệnh vẫn kết thúc có lãi (lãi 30% của TP1)
                 elif current_price <= t['stop_loss']:
                     t['status'] = 'CLOSED_BE'
                     t['close_price'] = current_price
                     tp1_pnl = t.get('tp1_pct', 0)
-                    t['pnl_pct'] = round(0.5 * tp1_pnl, 2)
+                    t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
                     t['closed_at'] = now_str
-                    events.append((t, f"🛡️ QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 50% TP1: +{t['pnl_pct']:.1f}%)"))
+                    events.append((t, f"🛡️ QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}%)"))
 
         except Exception as e:
             print(f"❌ Lỗi lấy giá {symbol}: {e}")

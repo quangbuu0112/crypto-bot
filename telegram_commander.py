@@ -118,13 +118,13 @@ def handle_orders_command(chat_id: str):
     msg += f"📌 *LỆNH ĐANG MỞ ({len(open_trades)} vị thế):*\n"
     if open_trades:
         for t in open_trades:
-            tp1_status = "✅ ĐÃ CHỐT 50%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
+            tp1_status = "✅ ĐÃ CHỐT 30%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
             sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
             msg += (
                 f"• *{t['symbol']}* (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
                 f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
-                f"  ├─ TP1 (Chốt 50%): `{tp1_status}`\n"
-                f"  ├─ TP2 (Gồng 50%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
+                f"  ├─ TP1 (Chốt 30%): `{tp1_status}`\n"
+                f"  ├─ TP2 (Gồng 70%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
                 f"  ├─ Cắt lỗ SL: `{sl_desc}`\n"
                 f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
             )
@@ -176,12 +176,12 @@ def handle_status_command(chat_id: str):
     use_atr = getattr(config, 'USE_ATR_STOPS', True)
 
     msg = (
-        "📊 *THÔNG TIN HỆ THỐNG BOT (SNIPER QUALITY)* 📊\n\n"
-        f"• *Chiến lược:* `Sniper Quality (Bắn tỉa chọn lọc)`\n"
+        "📊 *THÔNG TIN HỆ THỐNG BOT (SNIPER BOOST)* 📊\n\n"
+        f"• *Chiến lược:* `Sniper Boost (30% TP1 / 70% TP2)`\n"
         f"• *Thời gian chạy (Uptime):* `{hours}h {minutes}m {seconds}s`\n"
         f"• *Chu kỳ quét:* Mỗi `{config.SLEEP_INTERVAL_SECONDS // 60} phút`\n"
         f"• *Danh mục theo dõi:* `{', '.join(config.SYMBOLS)}`\n"
-        f"• *Quản trị rủi ro:* `SL: 1.4x | TP1: 1.2x (Chốt 50%) | TP2: 3.0x ATR`\n"
+        f"• *Quản trị rủi ro:* `SL: 1.4x | TP1: 1.2x (Chốt 30%) | TP2: 3.5x ATR (Gồng 70%)`\n"
         f"• *Ngưỡng duyệt Gemini AI:* `>= {getattr(config, 'MIN_AI_CONFIDENCE_SCORE', 8)}/10 điểm`\n"
         f"• *Model AI Chính:* `{model_name}`\n"
         f"• *Model AI Dự phòng:* `{fallback_name}`\n\n"
