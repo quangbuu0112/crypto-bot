@@ -59,22 +59,47 @@ def get_help_message() -> str:
 def handle_balance_command(chat_id: str):
     reply_telegram(chat_id, "⏳ *Đang truy vấn số dư các sàn giao dịch...*")
     balances = multi_exchange_trader.check_all_testnet_balances()
-    msg = "💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN TESTNET* 💰\n\n"
+
+    # Lấy danh sách các coin mà bot đang theo dõi giao dịch
+    target_coins = set(['USDT', 'USDC'])
+    for s in getattr(config, 'SYMBOLS', []):
+        base = s.split('/')[0].upper()
+        target_coins.add(base)
+
+    mode_str = "📄 *CHẾ ĐỘ:* `Live Paper Trading` (Giả lập với giá thật)" if not getattr(config, 'USE_TESTNET', False) else "🧪 *CHẾ ĐỘ:* `Testnet Multi-Exchange`"
+
+    msg = f"💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN* 💰\n{mode_str}\n\n"
 
     for ex_name, data in balances.items():
-        msg += f"🏦 *Sàn {ex_name.upper()}:*\n"
+        msg += f"🏦 *Sàn {ex_name.upper()} (Testnet):*\n"
         if data.get("success"):
             assets = data.get("assets", {})
-            has_asset = False
-            for curr, info in assets.items():
-                tot = info.get("total", 0)
-                if tot > 0.0001:
-                    has_asset = True
-                    msg += f"• `{curr}`: *{tot:,.4f}* (Khả dụng: {info.get('free', 0):,.4f})\n"
-            if not has_asset:
-                msg += "• _Ví trống hoặc chưa có số dư_\n"
+            displayed_assets = {}
+
+            # Ưu tiên 1: Hiển thị các coin mục tiêu của bot (USDT, BTC, ETH, SOL, BNB, XRP...)
+            for curr in sorted(target_coins):
+                if curr in assets and assets[curr].get('total', 0) > 0.0001:
+                    displayed_assets[curr] = assets[curr]
+
+            # Ưu tiên 2: Thêm các coin có số dư lớn khác nếu chưa đủ 8 coin
+            for curr, info in sorted(assets.items(), key=lambda x: x[1].get('total', 0), reverse=True):
+                if len(displayed_assets) >= 8:
+                    break
+                if curr not in displayed_assets and info.get('total', 0) > 0.0001:
+                    displayed_assets[curr] = info
+
+            if displayed_assets:
+                for curr, info in displayed_assets.items():
+                    tot = info.get("total", 0)
+                    free = info.get("free", 0)
+                    msg += f"• `{curr:<6}`: *{tot:,.4f}* (Khả dụng: {free:,.4f})\n"
+                if len(assets) > len(displayed_assets):
+                    msg += f"• _...và {len(assets) - len(displayed_assets)} token testnet khác._\n"
+            else:
+                msg += "• _Ví trống hoặc chưa có số dư USDT/Crypto_\n"
         else:
-            msg += f"• ❌ Lỗi kết nối: `{data.get('error')}`\n"
+            err_msg = str(data.get('error', 'Lỗi không xác định'))[:150]
+            msg += f"• ❌ Lỗi kết nối: `{err_msg}`\n"
         msg += "\n"
 
     reply_telegram(chat_id, msg)

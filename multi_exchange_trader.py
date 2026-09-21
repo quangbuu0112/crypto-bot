@@ -30,6 +30,8 @@ def get_exchange_client(exchange_name: str):
             'enableRateLimit': True,
             'options': {
                 'defaultType': 'spot',
+                'adjustForTimeDifference': True,
+                'recvWindow': 10000,
             }
         })
         client.set_sandbox_mode(True)
