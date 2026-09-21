@@ -23,7 +23,7 @@ import multi_exchange_trader
 _start_time = datetime.now()
 
 def reply_telegram(chat_id: str, text: str):
-    """Gửi tin nhắn phản hồi về Telegram của người dùng"""
+    """Gửi tin nhắn phản hồi về Telegram của người dùng (có fallback plain text nếu lỗi Markdown)"""
     token = str(config.TELEGRAM_BOT_TOKEN).strip() if config.TELEGRAM_BOT_TOKEN else ""
     if not token:
         return
@@ -34,7 +34,11 @@ def reply_telegram(chat_id: str, text: str):
         "parse_mode": "Markdown"
     }
     try:
-        requests.post(url, json=payload, timeout=10)
+        res = requests.post(url, json=payload, timeout=10)
+        # Nếu Telegram báo lỗi 400 (lỗi entity Markdown parse), tự động gửi lại dưới dạng plain text
+        if res.status_code != 200:
+            plain_text = text.replace("*", "").replace("`", "").replace("_", "")
+            requests.post(url, json={"chat_id": chat_id, "text": plain_text}, timeout=10)
     except Exception as e:
         print(f"❌ [Telegram Commander] Lỗi gửi tin nhắn: {e}")
 
@@ -219,7 +223,7 @@ def handle_report_command(chat_id: str):
         f"• *Tổng PnL tích lũy:* *{total_pnl:+.2f}%*\n"
         f"• *Lãi trung bình / WIN:* `+{avg_win:.2f}%`\n"
         f"• *Lỗ trung bình / LOSS:* `{avg_loss:.2f}%`\n\n"
-        "📁 _Toàn bộ nhật ký chi tiết được lưu trong paper_trades.json & CSV report._"
+        "📁 _Toàn bộ nhật ký chi tiết được lưu trong file report._"
     )
     reply_telegram(chat_id, msg)
 
