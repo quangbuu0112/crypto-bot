@@ -1,12 +1,21 @@
-# Environment variables (contains API keys)
+# Environment variables (contains secret API keys)
 .env
+.env.*
 
-# Python cache
+# Python Virtual Environment & Cache
+.venv/
+venv/
+env/
 __pycache__/
+*.pyc
 
-# Excel files (generated)
-reports/crypto_summary.xlsx
+# Temporary scratch & debug files
+scratch/
+charts/
 
-# Paper trading data
+# Generated local trade logs & reports
 paper_trades.json
+reports/crypto_summary.xlsx
+reports/live_paper_performance.csv
+
 
