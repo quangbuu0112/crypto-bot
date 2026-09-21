@@ -22,10 +22,12 @@ def save_trades(trades):
     with open(TRADES_FILE, 'w', encoding='utf-8') as f:
         json.dump(trades, f, ensure_ascii=False, indent=2)
 
-def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_pct: float = None, ai_score: int = 0, stop_loss: float = None, take_profit: float = None):
-    """Mở một lệnh mua mô phỏng mới với SL/TP động theo ATR hoặc %"""
+def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_pct: float = None,
+                     ai_score: int = 0, stop_loss: float = None, take_profit: float = None,
+                     macro_regime: str = None, fng_summary: str = None, ai_reasoning: str = None):
+    """Mở một lệnh mua mô phỏng mới với SL/TP động theo ATR hoặc % và lưu đầy đủ thông số"""
     trades = load_trades()
-    
+
     # Kiểm tra xem coin này đã có lệnh nào đang chạy chưa (tránh trùng lệnh)
     for t in trades:
         if t['symbol'] == symbol and t['status'] == 'OPEN':
@@ -40,9 +42,9 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
     trade_id = f"{symbol.replace('/', '_')}_{int(time.time())}"
     opened_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
-    # Đặt lệnh Mua song song lên tất cả các sàn Testnet được kích hoạt (Binance, Bybit)
+    # Đặt lệnh Mua song song lên tất cả các sàn Testnet được kích hoạt (nếu bật USE_TESTNET)
     exchange_orders = {}
-    if getattr(config, "USE_TESTNET", True):
+    if getattr(config, "USE_TESTNET", False):
         usdt_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
         multi_res = multi_exchange_trader.place_multi_market_buy(symbol, usdt_amount=usdt_amt)
         for ex_name, o_data in multi_res.items():
@@ -58,6 +60,9 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
         "sl_pct": round(actual_sl_pct, 2),
         "tp_pct": round(actual_tp_pct, 2),
         "ai_score": ai_score,
+        "macro_regime": macro_regime or "N/A",
+        "fng_summary": fng_summary or "N/A",
+        "ai_reasoning": ai_reasoning or "N/A",
         "status": "OPEN",
         "opened_at": opened_at,
         "exchange_orders": exchange_orders

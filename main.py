@@ -110,7 +110,10 @@ def run_bot_cycle():
             take_profit=tech_signal.get('take_profit'),
             sl_pct=tech_signal.get('sl_pct'),
             tp_pct=tech_signal.get('tp_pct'),
-            ai_score=ai_audit.confidence_score
+            ai_score=ai_audit.confidence_score,
+            macro_regime=market_health.market_regime if market_health else "N/A",
+            fng_summary=market_health.fng_summary if market_health else "N/A",
+            ai_reasoning=ai_audit.ai_reasoning
         )
 
         if trade:

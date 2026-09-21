@@ -154,6 +154,34 @@ def handle_status_command(chat_id: str):
     )
     reply_telegram(chat_id, msg)
 
+def handle_report_command(chat_id: str):
+    trades = load_trades()
+    closed_trades = [t for t in trades if t.get("status") != "OPEN"]
+
+    if not closed_trades:
+        reply_telegram(chat_id, "📊 *BÁO CÁO HIỆU SUẤT PAPER TRADING*\n\n_Chưa có lệnh nào đóng vị thế để tổng hợp kết quả._")
+        return
+
+    wins = [t for t in closed_trades if float(t.get("pnl_pct", 0)) > 0]
+    losses = [t for t in closed_trades if float(t.get("pnl_pct", 0)) <= 0]
+    total_closed = len(closed_trades)
+    win_rate = (len(wins) / total_closed) * 100 if total_closed > 0 else 0.0
+    total_pnl = sum(float(t.get("pnl_pct", 0)) for t in closed_trades)
+    avg_win = sum(float(t.get("pnl_pct", 0)) for t in wins) / len(wins) if wins else 0.0
+    avg_loss = sum(float(t.get("pnl_pct", 0)) for t in losses) / len(losses) if losses else 0.0
+
+    msg = (
+        "📊 *BÁO CÁO TỔNG HỢP HIỆU SUẤT BOT* 📊\n\n"
+        f"• *Tổng số lệnh đã đóng:* `{total_closed} lệnh`\n"
+        f"• *Thắng (WIN):* `{len(wins)} lệnh` (*{win_rate:.1f}%*)\n"
+        f"• *Thua (LOSS):* `{len(losses)} lệnh` (*{100 - win_rate:.1f}%*)\n"
+        f"• *Tổng PnL tích lũy:* *{total_pnl:+.2f}%*\n"
+        f"• *Lãi trung bình / WIN:* `+{avg_win:.2f}%`\n"
+        f"• *Lỗ trung bình / LOSS:* `{avg_loss:.2f}%`\n\n"
+        "📁 _Toàn bộ nhật ký chi tiết được lưu trong paper_trades.json & CSV report._"
+    )
+    reply_telegram(chat_id, msg)
+
 def process_message(chat_id: str, text: str, scan_callback=None):
     cmd = text.strip().lower()
 
@@ -165,6 +193,9 @@ def process_message(chat_id: str, text: str, scan_callback=None):
 
     elif cmd in ['/orders', '/lenh', 'orders', 'lenh', 'positions']:
         handle_orders_command(chat_id)
+
+    elif cmd in ['/report', '/thongke', 'report', 'thongke', 'pnl']:
+        handle_report_command(chat_id)
 
     elif cmd in ['/market', '/vimo', 'market', 'vimo', 'btc']:
         handle_market_command(chat_id)
