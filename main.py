@@ -77,7 +77,8 @@ def run_bot_cycle():
                 continue
 
         # Bước 4: Gemini AI Audit
-        print(f"   ├─ Bước 4 (Gemini AI Audit): Đang gửi thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
+        strat_type = tech_signal.get('strategy_type', 'SNIPER_TREND')
+        print(f"   ├─ Bước 4 (Gemini AI Audit - {strat_type}): Đang gửi thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
         ai_audit = audit_signal_with_gemini(
             symbol=tech_signal['symbol'],
             entry_price=tech_signal['entry_price'],
@@ -87,7 +88,8 @@ def run_bot_cycle():
             candles_summary=tech_signal['candles_summary'],
             stop_loss=tech_signal.get('stop_loss'),
             take_profit=tech_signal.get('take_profit'),
-            atr=tech_signal.get('atr')
+            atr=tech_signal.get('atr'),
+            strategy_type=strat_type
         )
 
         if ai_audit:
@@ -102,7 +104,7 @@ def run_bot_cycle():
             print("   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
             continue
 
-        # Bước 5: Quản trị vị thế & Mở lệnh Sniper Custom
+        # Bước 5: Quản trị vị thế & Mở lệnh (DUAL Regime)
         trade = open_paper_trade(
             symbol=symbol,
             entry_price=tech_signal['entry_price'],
@@ -119,33 +121,51 @@ def run_bot_cycle():
             ai_score=ai_audit.confidence_score,
             macro_regime=market_health.market_regime if market_health else "N/A",
             fng_summary=market_health.fng_summary if market_health else "N/A",
-            ai_reasoning=ai_audit.ai_reasoning
+            ai_reasoning=ai_audit.ai_reasoning,
+            strategy_type=strat_type,
+            strategy_desc=tech_signal.get('strategy_desc')
         )
 
         if trade:
-            tp1_val = trade.get('take_profit_1', trade['take_profit'])
-            tp2_val = trade.get('take_profit_2', trade['take_profit'])
-            tp1_s = int(trade.get('tp1_share', 0.3) * 100)
-            tp2_s = int(trade.get('tp2_share', 0.7) * 100)
-            coin_note = tech_signal.get('coin_strategy_desc', 'Sniper Custom')
-            print(f"   └─ Bước 5 (Thực thi Sniper): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
             macro_info = (
                 f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
                 if market_health else ""
             )
-            msg = (
-                f"🎯 *MỞ LỆNH MUA SNIPER CUSTOM* 🎯\n\n"
-                f"{macro_info}"
-                f"• *Cặp coin:* `{symbol}`\n"
-                f"• *Chiến lược riêng:* _{coin_note}_\n"
-                f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
-                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt {tp1_s}% & kéo SL về Entry)\n"
-                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng {tp2_s}% còn lại)\n"
-                f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
-                f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: >={min_required_score})\n"
-                f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng {tp2_s}% vị thế miễn phí rủi ro!"
-            )
+
+            if strat_type == "SIDEWAY_RANGE":
+                print(f"   └─ Bước 5 (Thực thi Sideway Range): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP: ${trade['take_profit']:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+                msg = (
+                    f"📦 *MỞ LỆNH MUA SIDEWAY RANGE* 📦\n\n"
+                    f"{macro_info}"
+                    f"• *Cặp coin:* `{symbol}`\n"
+                    f"• *Chiến lược:* _Bắt đáy Lower BB + RSI quá bán ({tech_signal.get('rsi', 0):.1f})_\n"
+                    f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
+                    f"• *Mục tiêu Chốt lời (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:,.2f}` (Trục giữa SMA20)\n"
+                    f"• *Cắt lỗ chặt (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
+                    f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Yêu cầu >={min_required_score})\n"
+                    f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
+                    f"⚡ *Cơ chế:* Lướt sóng biên hộp ngắn hạn, chốt lời nhanh bảo toàn lợi nhuận!"
+                )
+            else:
+                tp1_val = trade.get('take_profit_1', trade['take_profit'])
+                tp2_val = trade.get('take_profit_2', trade['take_profit'])
+                tp1_s = int(trade.get('tp1_share', 0.3) * 100)
+                tp2_s = int(trade.get('tp2_share', 0.7) * 100)
+                coin_note = tech_signal.get('coin_strategy_desc', 'Sniper Custom')
+                print(f"   └─ Bước 5 (Thực thi Sniper Trend): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+                msg = (
+                    f"🎯 *MỞ LỆNH MUA SNIPER TREND* 🎯\n\n"
+                    f"{macro_info}"
+                    f"• *Cặp coin:* `{symbol}`\n"
+                    f"• *Chiến lược riêng:* _{coin_note}_\n"
+                    f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
+                    f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt {tp1_s}% & kéo SL về Entry)\n"
+                    f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng {tp2_s}% còn lại)\n"
+                    f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
+                    f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Yêu cầu >={min_required_score})\n"
+                    f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
+                    f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng {tp2_s}% vị thế miễn phí rủi ro!"
+                )
             send_telegram_alert(msg)
         else:
             print(f"   └─ Bước 5 (Thực thi lệnh): [BỎ QUA] Coin {symbol} đã có vị thế OPEN đang chạy, không mở thêm.")

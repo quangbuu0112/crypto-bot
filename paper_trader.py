@@ -27,8 +27,9 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
                      take_profit_1: float = None, take_profit_2: float = None,
                      tp1_pct: float = None, tp2_pct: float = None,
                      tp1_share: float = None, tp2_share: float = None,
-                     macro_regime: str = None, fng_summary: str = None, ai_reasoning: str = None):
-    """Mở một lệnh mua mô phỏng mới theo chuẩn Sniper Quality với Partial TP1 & TP2"""
+                     macro_regime: str = None, fng_summary: str = None, ai_reasoning: str = None,
+                     strategy_type: str = "SNIPER_TREND", strategy_desc: str = None):
+    """Mở một lệnh mua mô phỏng mới theo chuẩn DUAL Regime (Sniper Trend hoặc Sideway Range)"""
     trades = load_trades()
 
     # Kiểm tra xem coin này đã có lệnh nào đang chạy chưa (tránh trùng lệnh)
@@ -38,7 +39,7 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
 
     calculated_sl = stop_loss if stop_loss is not None else entry_price * (1 - (sl_pct if sl_pct is not None else config.STOP_LOSS_PCT))
     calculated_tp2 = take_profit_2 if take_profit_2 is not None else (take_profit if take_profit is not None else entry_price * (1 + config.TAKE_PROFIT_PCT))
-    calculated_tp1 = take_profit_1 if take_profit_1 is not None else entry_price + (calculated_tp2 - entry_price) * 0.4
+    calculated_tp1 = take_profit_1 if take_profit_1 is not None else (calculated_tp2 if strategy_type == "SIDEWAY_RANGE" else entry_price + (calculated_tp2 - entry_price) * 0.4)
 
     actual_sl_pct = (entry_price - calculated_sl) / entry_price * 100
     actual_tp1_pct = (calculated_tp1 - entry_price) / entry_price * 100
@@ -59,6 +60,8 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
     new_trade = {
         "id": trade_id,
         "symbol": symbol,
+        "strategy_type": strategy_type,
+        "strategy_desc": strategy_desc or ("🎯 SNIPER TREND" if strategy_type == "SNIPER_TREND" else "📦 SIDEWAY RANGE"),
         "entry_price": round(entry_price, 4),
         "initial_sl": round(calculated_sl, 4),
         "stop_loss": round(calculated_sl, 4),
@@ -87,11 +90,9 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
 
 def check_and_update_paper_trades():
     """
-    Quét giá Binance thực tế để xử lý quy trình Sniper Boost:
-    1. Chạm TP1: Chốt lời 30% khối lượng, kéo Stop Loss về Entry hòa vốn (Rủi ro = 0%).
-    2. Chạm TP2: Chốt lời toàn bộ 70% còn lại để ăn trọn sóng lớn (+3.5x ATR).
-    3. Đã chạm TP1 mà quay đầu về Entry: Đóng 70% còn lại ở hòa vốn (giữ nguyên 30% lãi TP1).
-    4. Chưa chạm TP1 mà chạm Stop Loss: Cắt lỗ ban đầu.
+    Quét giá Binance thực tế để xử lý vị thế cho cả 2 chế độ:
+    - SIDEWAY_RANGE: Chốt lời tại SMA20 / +2.2%, Cắt lỗ 1.2x ATR.
+    - SNIPER_TREND : Quy trình 2 giai đoạn (TP1 30% dời SL về Entry, TP2 70% gồng dài).
     """
     trades = load_trades()
     open_trades = [t for t in trades if t['status'] == 'OPEN']
@@ -100,8 +101,6 @@ def check_and_update_paper_trades():
         return []
 
     events = []
-    tp1_share = getattr(config, 'TP1_SHARE', 0.3)
-    tp2_share = getattr(config, 'TP2_SHARE', 0.7)
 
     for t in open_trades:
         symbol = t['symbol']
@@ -110,52 +109,81 @@ def check_and_update_paper_trades():
             current_price = ticker['last']
             entry_price = t['entry_price']
             now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
-            tp1_target = t.get('take_profit_1', t.get('take_profit', entry_price * 1.02))
-            tp2_target = t.get('take_profit_2', t.get('take_profit', entry_price * 1.04))
+            strat_type = t.get('strategy_type', 'SNIPER_TREND')
 
-            # TRƯỜNG HỢP 1: CHƯA CHẠM TP1
-            if not t.get('tp1_hit', False):
-                # 1A. Chạm TP1 -> Chốt 30% & Kéo SL về Entry hòa vốn
-                if current_price >= tp1_target:
-                    t['tp1_hit'] = True
-                    t['tp1_hit_at'] = now_str
-                    t['tp1_price'] = current_price
-                    t['stop_loss'] = entry_price # Dời SL về hòa vốn
+            # =========================================================
+            # XỬ LÝ VỊ THẾ SIDEWAY RANGE (BẮT ĐÁY BIÊN HỘP)
+            # =========================================================
+            if strat_type == "SIDEWAY_RANGE":
+                tp_target = t.get('take_profit', entry_price * 1.022)
+                sl_target = t.get('stop_loss', entry_price * 0.98)
 
-                    events.append((
-                        t,
-                        f"🎯 CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}%)\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
-                    ))
+                if current_price >= tp_target:
+                    t['status'] = 'CLOSED_TP'
+                    t['close_price'] = current_price
+                    pnl_pct = (current_price - entry_price) / entry_price * 100
+                    t['pnl_pct'] = round(pnl_pct, 2)
+                    t['closed_at'] = now_str
+                    events.append((t, f"📦 [SIDEWAY] CHỐT LỜI BIÊN TRÊN (+{t['pnl_pct']:.1f}%)"))
 
-                # 1B. Chưa chạm TP1 mà chạm Stop Loss ban đầu
-                elif current_price <= t['stop_loss']:
+                elif current_price <= sl_target:
                     t['status'] = 'CLOSED_SL'
                     t['close_price'] = current_price
                     pnl_pct = (current_price - entry_price) / entry_price * 100
                     t['pnl_pct'] = round(pnl_pct, 2)
                     t['closed_at'] = now_str
-                    events.append((t, f"🔴 CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}%)"))
+                    events.append((t, f"🔴 [SIDEWAY] CẮT LỖ THỦNG BIÊN (-{abs(t['pnl_pct']):.1f}%)"))
 
-            # TRƯỜNG HỢP 2: ĐÃ CHỐT 30% TP1 (GỒNG 70% CÒN LẠI VỚI SL VỀ ENTRY)
+            # =========================================================
+            # XỬ LÝ VỊ THẾ SNIPER TREND (2 GIAI ĐOẠN TP1 + TP2)
+            # =========================================================
             else:
-                # 2A. Tiếp tục bay lên chạm TP2 -> Chốt trọn vẹn 70% còn lại
-                if current_price >= tp2_target:
-                    t['status'] = 'CLOSED_TP2'
-                    t['close_price'] = current_price
-                    tp1_pnl = t.get('tp1_pct', 0)
-                    tp2_pnl = (current_price - entry_price) / entry_price * 100
-                    t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
-                    t['closed_at'] = now_str
-                    events.append((t, f"🏆 CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% TỔNG LÃI)"))
+                tp1_target = t.get('take_profit_1', t.get('take_profit', entry_price * 1.02))
+                tp2_target = t.get('take_profit_2', t.get('take_profit', entry_price * 1.04))
+                tp1_share = t.get('tp1_share', getattr(config, 'TP1_SHARE', 0.3))
+                tp2_share = t.get('tp2_share', getattr(config, 'TP2_SHARE', 0.7))
 
-                # 2B. Quay đầu cắn Entry hòa vốn -> Lệnh vẫn kết thúc có lãi (lãi 30% của TP1)
-                elif current_price <= t['stop_loss']:
-                    t['status'] = 'CLOSED_BE'
-                    t['close_price'] = current_price
-                    tp1_pnl = t.get('tp1_pct', 0)
-                    t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
-                    t['closed_at'] = now_str
-                    events.append((t, f"🛡️ QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}%)"))
+                if not t.get('tp1_hit', False):
+                    # Chạm TP1 -> Chốt 30% & Kéo SL về Entry hòa vốn
+                    if current_price >= tp1_target:
+                        t['tp1_hit'] = True
+                        t['tp1_hit_at'] = now_str
+                        t['tp1_price'] = current_price
+                        t['stop_loss'] = entry_price # Dời SL về hòa vốn
+
+                        events.append((
+                            t,
+                            f"🎯 [SNIPER] CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}%)\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
+                        ))
+
+                    # Chưa chạm TP1 mà chạm Stop Loss ban đầu
+                    elif current_price <= t['stop_loss']:
+                        t['status'] = 'CLOSED_SL'
+                        t['close_price'] = current_price
+                        pnl_pct = (current_price - entry_price) / entry_price * 100
+                        t['pnl_pct'] = round(pnl_pct, 2)
+                        t['closed_at'] = now_str
+                        events.append((t, f"🔴 [SNIPER] CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}%)"))
+
+                else:
+                    # Đã chốt 30% TP1, tiếp tục chạm TP2
+                    if current_price >= tp2_target:
+                        t['status'] = 'CLOSED_TP2'
+                        t['close_price'] = current_price
+                        tp1_pnl = t.get('tp1_pct', 0)
+                        tp2_pnl = (current_price - entry_price) / entry_price * 100
+                        t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
+                        t['closed_at'] = now_str
+                        events.append((t, f"🏆 [SNIPER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% TỔNG LÃI)"))
+
+                    # Đã chốt 30% TP1, quay đầu về Entry hòa vốn
+                    elif current_price <= t['stop_loss']:
+                        t['status'] = 'CLOSED_BE'
+                        t['close_price'] = current_price
+                        tp1_pnl = t.get('tp1_pct', 0)
+                        t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
+                        t['closed_at'] = now_str
+                        events.append((t, f"🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}%)"))
 
         except Exception as e:
             print(f"❌ Lỗi lấy giá {symbol}: {e}")

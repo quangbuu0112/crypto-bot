@@ -44,6 +44,13 @@ RSI_MAX = 65
 ADX_MIN = 20
 VOL_RATIO_MIN = 1.0
 
+# Cấu hình Cơ chế Kép Thích Ứng (Dual-Regime Engine: Trend + Sideway)
+ENABLE_DUAL_REGIME = True         # Bật tự động chuyển chế độ và bắt đáy Sideway khi thị trường tích lũy
+SIDEWAY_RSI_MAX = 38              # Ngưỡng RSI quá bán bắt đáy biên dưới Sideway (<= 38)
+SIDEWAY_SL_ATR_MULT = 1.2         # Cắt lỗ chặt 1.2x ATR khi đánh Sideway
+SIDEWAY_TP_MIN_PCT = 0.022        # Chốt lời mục tiêu tối thiểu +2.2% hoặc tại SMA20 / Upper BB
+SIDEWAY_MAX_HOLD_BARS = 16        # Giới hạn giữ lệnh tối đa 16 nến 1H (~16 giờ)
+
 # ==============================================================================
 # 🎯 CẤU HÌNH TỐI ƯU HÓA ĐẶC THÙ RIÊNG CHO TỪNG ĐỒNG COIN (COIN-SPECIFIC TUNING)
 # ==============================================================================

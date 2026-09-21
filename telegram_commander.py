@@ -115,21 +115,33 @@ def handle_orders_command(chat_id: str):
     open_trades = [t for t in trades if t.get("status") == "OPEN"]
     closed_trades = [t for t in trades if t.get("status") != "OPEN"]
 
-    msg = "📜 *BÁO CÁO VỊ THẾ & LỊCH SỬ LỆNH SNIPER* 📜\n\n"
+    msg = "📜 *BÁO CÁO VỊ THẾ & LỊCH SỬ LỆNH (DUAL REGIME)* 📜\n\n"
 
     msg += f"📌 *LỆNH ĐANG MỞ ({len(open_trades)} vị thế):*\n"
     if open_trades:
         for t in open_trades:
-            tp1_status = "✅ ĐÃ CHỐT 30%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
-            sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
-            msg += (
-                f"• *{t['symbol']}* (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
-                f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
-                f"  ├─ TP1 (Chốt 30%): `{tp1_status}`\n"
-                f"  ├─ TP2 (Gồng 70%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
-                f"  ├─ Cắt lỗ SL: `{sl_desc}`\n"
-                f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
-            )
+            strat_icon = "🎯" if t.get("strategy_type") == "SNIPER_TREND" else "📦"
+            strat_label = "SNIPER TREND" if t.get("strategy_type") == "SNIPER_TREND" else "SIDEWAY RANGE"
+
+            if t.get("strategy_type") == "SIDEWAY_RANGE":
+                msg += (
+                    f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                    f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
+                    f"  ├─ Mục tiêu Chốt lời: `${t.get('take_profit', 0):,.2f}` (+{t.get('tp_pct', 0):.1f}%)\n"
+                    f"  ├─ Cắt lỗ SL: `${t.get('stop_loss', 0):,.2f}` (-{t.get('sl_pct', 0):.1f}%)\n"
+                    f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
+                )
+            else:
+                tp1_status = "✅ ĐÃ CHỐT 30%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
+                sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
+                msg += (
+                    f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                    f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
+                    f"  ├─ TP1 (Chốt 30%): `{tp1_status}`\n"
+                    f"  ├─ TP2 (Gồng 70%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
+                    f"  ├─ Cắt lỗ SL: `{sl_desc}`\n"
+                    f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
+                )
     else:
         msg += "• _Hiện không có vị thế nào đang mở._\n"
 
@@ -139,8 +151,9 @@ def handle_orders_command(chat_id: str):
             status_icon = "🟢" if "TP" in t.get("status", "") or "BE" in t.get("status", "") else "🔴"
             pnl = t.get("pnl_pct", 0)
             pnl_sign = f"+{pnl:.1f}%" if pnl >= 0 else f"{pnl:.1f}%"
+            s_type = "🎯 Trend" if t.get("strategy_type") == "SNIPER_TREND" else "📦 Sideway"
             msg += (
-                f"{status_icon} *{t['symbol']}* | `{t.get('status')}`\n"
+                f"{status_icon} *{t['symbol']}* ({s_type}) | `{t.get('status')}`\n"
                 f"  ├─ Tổng PnL: *{pnl_sign}* | Entry: `${t['entry_price']:,.2f}` -> Đóng: `${t.get('close_price', 0):,.2f}`\n"
                 f"  └─ Thời gian: `{t.get('closed_at', t.get('opened_at', 'N/A'))}`\n"
             )
@@ -156,7 +169,7 @@ def handle_market_command(chat_id: str):
         reply_telegram(chat_id, "❌ Không thể lấy dữ liệu bối cảnh thị trường.")
         return
 
-    status_str = "🟢 AN TOÀN VÀO LỆNH (SNIPER)" if market_health.can_open_trades else "🔴 KHÓA LỆNH MUA (RỦI RO CAO)"
+    status_str = "🟢 AN TOÀN VÀO LỆNH (DUAL)" if market_health.can_open_trades else "🔴 KHÓA LỆNH MUA (RỦI RO CAO)"
     msg = (
         "🌐 *BÁO CÁO MACRO GATEKEEPER* 🌐\n\n"
         f"• *Trạng thái:* *{status_str}*\n"
@@ -242,15 +255,17 @@ def handle_status_command(chat_id: str):
     model_name = getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash')
     fallback_name = getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
     order_amt = getattr(config, 'ORDER_AMOUNT_USDT', 50.0)
+    dual_mode = "BẬT (Trend + Sideway)" if getattr(config, 'ENABLE_DUAL_REGIME', True) else "TẮT (Chỉ Trend)"
 
     msg = (
-        "📊 *THÔNG TIN HỆ THỐNG BOT (SNIPER BOOST)* 📊\n\n"
-        f"• *Chiến lược:* `Sniper Boost (30% TP1 / 70% TP2)`\n"
+        "📊 *THÔNG TIN HỆ THỐNG BOT (DUAL REGIME)* 📊\n\n"
+        f"• *Chế độ vận hành:* `DUAL REGIME: {dual_mode}`\n"
+        f"  ├─ 🎯 *Trend:* `30% TP1 / 70% TP2 (SL ATR tối ưu)`\n"
+        f"  └─ 📦 *Sideway:* `Bắt đáy Lower BB + RSI <= 38 (TP SMA20)`\n"
         f"• *Vốn mỗi lệnh:* `${order_amt:,.2f} USDT`\n"
         f"• *Thời gian chạy (Uptime):* `{hours}h {minutes}m {seconds}s`\n"
         f"• *Chu kỳ quét:* Mỗi `{config.SLEEP_INTERVAL_SECONDS // 60} phút`\n"
         f"• *Danh mục theo dõi:* `{', '.join(config.SYMBOLS)}`\n"
-        f"• *Quản trị rủi ro:* `SL / TP1 / TP2 tối ưu hóa riêng theo từng Coin`\n"
         f"• *Ngưỡng duyệt Gemini AI:* `>= {getattr(config, 'MIN_AI_CONFIDENCE_SCORE', 8)}/10 điểm`\n"
         f"• *Model AI Chính:* `{model_name}`\n"
         f"• *Model AI Dự phòng:* `{fallback_name}`\n\n"
