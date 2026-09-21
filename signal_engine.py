@@ -26,8 +26,8 @@ def analyze_technical_signal(symbol: str) -> tuple:
         "step3_trigger_1h": None
     }
 
-    df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=300)
-    df_1h = fetch_ohlcv_data(symbol, timeframe="1h", limit=100)
+    df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=220)
+    df_1h = fetch_ohlcv_data(symbol, timeframe="1h", limit=60)
 
     if df_4h is None or df_1h is None:
         diagnostics["step2_trend_4h"] = {

@@ -1,10 +1,22 @@
 import time
+import gc
+import ctypes
 import requests
 import config
 from signal_engine import analyze_technical_signal
 from gemini_auditor import audit_signal_with_gemini
 from paper_trader import open_paper_trade, check_and_update_paper_trades
 from market_gatekeeper import check_market_health
+
+def release_system_memory():
+    """Dọn sạch rác Python và ép Linux OS thu hồi 100% RAM dư thừa về hệ thống"""
+    gc.collect()
+    try:
+        # Lệnh can thiệp trực tiếp vào C runtime của Linux để trả RAM về cho OS
+        libc = ctypes.CDLL("libc.so.6")
+        libc.malloc_trim(0)
+    except Exception:
+        pass
 
 def send_telegram_alert(message: str):
     clean_token = str(config.TELEGRAM_BOT_TOKEN).strip()
@@ -141,23 +153,30 @@ def monitor_paper_trades():
         send_telegram_alert(msg)
 
 def main():
+    model_name = getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash')
     print("==================================================")
-    print("🤖 HYBRID PAPER TRADING BOT (PYTHON + GEMINI 3.5) ")
+    print(f"🤖 HYBRID CRYPTO TRADING BOT (PYTHON + {model_name}) ")
     print("==================================================")
-    
-    send_telegram_alert("🤖 *Bot Paper Trading đã khởi động! Đang theo dõi & đối chứng giá thực tế.*")
+    print(f"📊 Danh sách coin theo dõi: {config.SYMBOLS}")
+    print(f"⏱️ Chu kỳ quét: Mỗi {config.SLEEP_INTERVAL_SECONDS // 60} phút.")
+    print("==================================================")
+
+    send_telegram_alert("🚀 *Hệ thống Crypto Trading Bot vừa khởi động lại thành công! Đang quét thị trường 24/7.*")
 
     while True:
         try:
             # 1. Kiểm tra khớp lệnh các vị thế đang mở
             monitor_paper_trades()
-            
+
             # 2. Phân tích quét tín hiệu mới
             run_bot_cycle()
-            
+
         except Exception as e:
             print(f"❌ Lỗi hệ thống: {e}")
-            
+        finally:
+            # 3. Thu hồi và giải phóng 100% RAM dư thừa về cho hệ điều hành
+            release_system_memory()
+
         print(f"😴 Chờ {config.SLEEP_INTERVAL_SECONDS // 60} phút cho lần quét tiếp theo...")
         time.sleep(config.SLEEP_INTERVAL_SECONDS)
 
