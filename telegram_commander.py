@@ -158,10 +158,24 @@ def handle_status_command(chat_id: str):
 
 def handle_report_command(chat_id: str):
     trades = load_trades()
+    open_trades = [t for t in trades if t.get("status") == "OPEN"]
     closed_trades = [t for t in trades if t.get("status") != "OPEN"]
 
     if not closed_trades:
-        reply_telegram(chat_id, "📊 *BÁO CÁO HIỆU SUẤT PAPER TRADING*\n\n_Chưa có lệnh nào đóng vị thế để tổng hợp kết quả._")
+        info = "📊 *BÁO CÁO HIỆU SUẤT PAPER TRADING* 📊\n\n"
+        if open_trades:
+            info += (
+                f"• _Chưa có lệnh nào đóng (TP/SL) để tính toán thống kê PnL._\n"
+                f"• Hiện đang có *{len(open_trades)} vị thế đang mở*.\n\n"
+                f"👉 Gõ `/orders` để theo dõi các lệnh đang chạy!"
+            )
+        else:
+            info += (
+                "• _Chưa có lịch sử giao dịch nào được ghi nhận._\n"
+                "• Bot đang theo dõi và quét thị trường theo chu kỳ để tìm điểm vào lệnh đạt chuẩn.\n\n"
+                "👉 Gõ `/scan` để yêu cầu bot quét thị trường ngay lập tức!"
+            )
+        reply_telegram(chat_id, info)
         return
 
     wins = [t for t in closed_trades if float(t.get("pnl_pct", 0)) > 0]
