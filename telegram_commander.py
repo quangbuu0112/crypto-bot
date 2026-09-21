@@ -45,6 +45,8 @@ def reply_telegram(chat_id: str, text: str):
 def get_help_message() -> str:
     return (
         "🤖 *DANH SÁCH LỆNH ĐIỀU KHIỂN BOT* 🤖\n\n"
+        "💵 `/amount [số_tiền]` hoặc `/tien [số_tiền]`\n"
+        "└─ Xem hoặc chỉnh số tiền USDT mỗi lệnh (VD: `/amount 100`)\n\n"
         "💰 `/balance` hoặc `/sodu`\n"
         "└─ Kiểm tra số dư ví trên Binance & Bybit Testnet\n\n"
         "📜 `/orders` hoặc `/lenh`\n"
@@ -57,7 +59,7 @@ def get_help_message() -> str:
         "└─ Kích hoạt quét 5 đồng coin ngay lập tức\n\n"
         "ℹ️ `/status`\n"
         "└─ Xem trạng thái hệ thống, model AI, cấu hình bot\n\n"
-        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `balance`, `orders`, `scan`, `report`) mà không cần dấu `/` cũng được!"
+        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `amount 100`, `orders`, `scan`, `report`) mà không cần dấu `/` cũng được!"
     )
 
 def handle_balance_command(chat_id: str):
@@ -165,6 +167,73 @@ def handle_market_command(chat_id: str):
     )
     reply_telegram(chat_id, msg)
 
+def update_env_variable(key: str, value: str):
+    """Cập nhật hoặc thêm biến môi trường vào file .env để lưu vĩnh viễn trên Server"""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        try:
+            with open(env_path, "w", encoding="utf-8") as f:
+                f.write(f"{key}={value}\n")
+        except Exception as e:
+            print(f"❌ Lỗi ghi file .env: {e}")
+        return
+
+    lines = []
+    found = False
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith(f"{key}="):
+                    lines.append(f"{key}={value}\n")
+                    found = True
+                else:
+                    lines.append(line)
+        if not found:
+            lines.append(f"{key}={value}\n")
+
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    except Exception as e:
+        print(f"❌ Lỗi cập nhật file .env: {e}")
+
+def handle_amount_command(chat_id: str, tokens: list):
+    current_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
+    if len(tokens) == 1:
+        msg = (
+            "💵 *CẤU HÌNH VỐN ĐI LỆNH (ORDER AMOUNT)* 💵\n\n"
+            f"• *Số tiền hiện tại cho mỗi lệnh:* `${current_amt:,.2f} USDT`\n\n"
+            "💡 *Cách thay đổi số tiền:*\n"
+            "Gõ `/amount <số_tiền>` (Ví dụ: `/amount 100` hoặc `/amount 50`)\n"
+            "Bot sẽ áp dụng ngay lập tức cho các lệnh tiếp theo!"
+        )
+        reply_telegram(chat_id, msg)
+        return
+
+    try:
+        new_amt_str = tokens[1].replace("$", "").replace(",", "").strip()
+        new_amt = float(new_amt_str)
+        if new_amt <= 0:
+            reply_telegram(chat_id, "❌ Số tiền vào lệnh phải lớn hơn 0 USDT.")
+            return
+        if new_amt > 100000:
+            reply_telegram(chat_id, "⚠️ Số tiền vào lệnh quá lớn (> $100,000). Vui lòng kiểm tra lại.")
+            return
+
+        # Cập nhật trực tiếp vào bộ nhớ đang chạy
+        config.ORDER_AMOUNT_USDT = new_amt
+        # Lưu vào .env để ghi nhớ khi khởi động lại bot
+        update_env_variable("ORDER_AMOUNT_USDT", str(new_amt))
+
+        msg = (
+            "✅ *CẬP NHẬT SỐ TIỀN VÀO LỆNH THÀNH CÔNG!* ✅\n\n"
+            f"• *Số tiền mới:* `${new_amt:,.2f} USDT / lệnh`\n"
+            f"• *Trạng thái:* Đã áp dụng ngay lập tức & lưu vào cấu hình hệ thống.\n\n"
+            "🎯 Mọi vị thế mới từ chu kỳ tới sẽ tự động vào lệnh với số vốn này!"
+        )
+        reply_telegram(chat_id, msg)
+    except ValueError:
+        reply_telegram(chat_id, f"❌ Giá trị `{tokens[1]}` không hợp lệ. Vui lòng nhập số, ví dụ: `/amount 100`.")
+
 def handle_status_command(chat_id: str):
     uptime_delta = datetime.now() - _start_time
     hours, remainder = divmod(int(uptime_delta.total_seconds()), 3600)
@@ -172,16 +241,16 @@ def handle_status_command(chat_id: str):
 
     model_name = getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash')
     fallback_name = getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
-    exchanges = getattr(config, 'ACTIVE_TESTNET_EXCHANGES', ['binance', 'bybit'])
-    use_atr = getattr(config, 'USE_ATR_STOPS', True)
+    order_amt = getattr(config, 'ORDER_AMOUNT_USDT', 50.0)
 
     msg = (
         "📊 *THÔNG TIN HỆ THỐNG BOT (SNIPER BOOST)* 📊\n\n"
         f"• *Chiến lược:* `Sniper Boost (30% TP1 / 70% TP2)`\n"
+        f"• *Vốn mỗi lệnh:* `${order_amt:,.2f} USDT`\n"
         f"• *Thời gian chạy (Uptime):* `{hours}h {minutes}m {seconds}s`\n"
         f"• *Chu kỳ quét:* Mỗi `{config.SLEEP_INTERVAL_SECONDS // 60} phút`\n"
         f"• *Danh mục theo dõi:* `{', '.join(config.SYMBOLS)}`\n"
-        f"• *Quản trị rủi ro:* `SL: 1.4x | TP1: 1.2x (Chốt 30%) | TP2: 3.5x ATR (Gồng 70%)`\n"
+        f"• *Quản trị rủi ro:* `SL / TP1 / TP2 tối ưu hóa riêng theo từng Coin`\n"
         f"• *Ngưỡng duyệt Gemini AI:* `>= {getattr(config, 'MIN_AI_CONFIDENCE_SCORE', 8)}/10 điểm`\n"
         f"• *Model AI Chính:* `{model_name}`\n"
         f"• *Model AI Dự phòng:* `{fallback_name}`\n\n"
@@ -241,6 +310,9 @@ def process_message(chat_id: str, text: str, scan_callback=None):
 
     if cmd in ['/start', '/help', 'help', 'menu', 'trogiup']:
         reply_telegram(chat_id, get_help_message())
+
+    elif cmd in ['/amount', '/setamount', '/tien', '/von', 'amount', 'setamount', 'tien', 'von']:
+        handle_amount_command(chat_id, tokens)
 
     elif cmd in ['/balance', '/sodu', 'balance', 'sodu', 'vi']:
         handle_balance_command(chat_id)

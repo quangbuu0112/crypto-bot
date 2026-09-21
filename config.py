@@ -21,7 +21,7 @@ BYBIT_TESTNET_SECRET = os.getenv("BYBIT_TESTNET_SECRET")
 
 USE_TESTNET = False                               # False: Paper Trading 100% (Giá thực tế từ sàn Binance, không đặt lệnh tiền thật)
 ACTIVE_TESTNET_EXCHANGES = ['binance', 'bybit']   # Dùng khi bật USE_TESTNET = True
-ORDER_AMOUNT_USDT = 50.0                          # Số vốn mô phỏng USDT cho mỗi lệnh
+ORDER_AMOUNT_USDT = float(os.getenv("ORDER_AMOUNT_USDT", 50.0))  # Số vốn mô phỏng USDT cho mỗi lệnh
 
 # Danh sách coin quét tín hiệu
 SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT']
