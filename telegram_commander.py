@@ -45,13 +45,15 @@ def get_help_message() -> str:
         "└─ Kiểm tra số dư ví trên Binance & Bybit Testnet\n\n"
         "📜 `/orders` hoặc `/lenh`\n"
         "└─ Xem các vị thế đang chạy & lịch sử chốt lời/cắt lỗ\n\n"
+        "📊 `/report` hoặc `/thongke`\n"
+        "└─ Báo cáo tổng hợp hiệu suất (Win Rate %, Tổng PnL %, Lãi/Lỗ trung bình)\n\n"
         "🌐 `/market` hoặc `/vimo`\n"
         "└─ Xem báo cáo Macro Gatekeeper (BTC & Fear & Greed)\n\n"
         "⚡ `/scan` hoặc `/quet`\n"
         "└─ Kích hoạt quét 5 đồng coin ngay lập tức\n\n"
-        "📊 `/status`\n"
+        "ℹ️ `/status`\n"
         "└─ Xem trạng thái hệ thống, model AI, cấu hình bot\n\n"
-        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `balance`, `orders`, `scan`) mà không cần dấu `/` cũng được!"
+        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `balance`, `orders`, `scan`, `report`) mà không cần dấu `/` cũng được!"
     )
 
 def handle_balance_command(chat_id: str):
@@ -183,7 +185,12 @@ def handle_report_command(chat_id: str):
     reply_telegram(chat_id, msg)
 
 def process_message(chat_id: str, text: str, scan_callback=None):
-    cmd = text.strip().lower()
+    if not text:
+        return
+    tokens = text.strip().split()
+    raw_cmd = tokens[0].lower() if tokens else ""
+    # Tự động loại bỏ đuôi mention @bot_name (ví dụ /report@my_crypto_bot -> /report)
+    cmd = raw_cmd.split('@')[0]
 
     if cmd in ['/start', '/help', 'help', 'menu', 'trogiup']:
         reply_telegram(chat_id, get_help_message())

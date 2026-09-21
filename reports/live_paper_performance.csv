@@ -1,0 +1,2 @@
+﻿id,symbol,entry_price,stop_loss,take_profit,ai_score,status,opened_at,close_price,pnl_pct,closed_at
+ETH/USDT_0,ETH/USDT,1875.18,1856.4282,1903.3076999999998,8,CLOSED_TP,,2617.83,39.6,2026-09-19 04:35:17 UTC
