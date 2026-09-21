@@ -7,6 +7,7 @@ from signal_engine import analyze_technical_signal
 from gemini_auditor import audit_signal_with_gemini
 from paper_trader import open_paper_trade, check_and_update_paper_trades
 from market_gatekeeper import check_market_health
+from telegram_commander import start_telegram_listener
 
 def release_system_memory():
     """Dọn sạch rác Python và ép Linux OS thu hồi 100% RAM dư thừa về hệ thống"""
@@ -162,6 +163,9 @@ def main():
     print("==================================================")
 
     send_telegram_alert("🚀 *Hệ thống Crypto Trading Bot vừa khởi động lại thành công! Đang quét thị trường 24/7.*")
+
+    # Kích hoạt luồng tương tác 2 chiều với Telegram
+    start_telegram_listener(scan_callback=run_bot_cycle)
 
     while True:
         try:

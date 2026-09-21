@@ -12,6 +12,7 @@ c:\Code\
 ├── market_gatekeeper.py    # Phân tích vĩ mô thị trường (BTC + Fear & Greed) bằng Gemini AI
 ├── signal_engine.py        # Phân tích tín hiệu kỹ thuật (EMA, RSI, ADX, Volume, ATR)
 ├── gemini_auditor.py       # Thẩm định tín hiệu từng coin bằng Gemini AI
+├── telegram_commander.py   # Tương tác 2 chiều với Telegram Bot (/balance, /orders, /scan...)
 ├── paper_trader.py         # Quản lý lệnh paper trade (mở/đóng lệnh)
 ├── multi_exchange_trader.py# Điều phối đặt lệnh song song (Binance + Bybit Testnet)
 ├── SYSTEM_WORKFLOW.md      # Tài liệu tổng quan toàn bộ quy trình vận hành chi tiết
