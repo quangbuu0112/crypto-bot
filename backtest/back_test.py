@@ -107,14 +107,20 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
                      start_ts=None, end_ts=None) -> list:
     hold_bars = params["hold_bars"]
     rsi_low = params["rsi_low"]
-    rsi_high = params["rsi_high"]
-    adx_thr = params["adx_threshold"]
-    vol_mult = params["vol_mult"]
-    warmup = params["warmup_4h"]
-    use_partial_tp = params.get("use_partial_tp", True)
-    atr_sl_mult = params.get("atr_sl_mult", 1.4)
-    atr_tp1_mult = params.get("atr_tp1_mult", 1.2)
-    atr_tp2_mult = params.get("atr_tp2_mult", 3.0)
+    # Nạp cấu hình tối ưu đặc thù của coin (nếu có)
+    coin_cfg = config.get_coin_config(symbol) if hasattr(config, 'get_coin_config') else {}
+    rsi_low = coin_cfg.get("rsi_min", params.get("rsi_low", 42))
+    rsi_high = coin_cfg.get("rsi_max", params.get("rsi_high", 65))
+    adx_thr = coin_cfg.get("adx_min", params.get("adx_threshold", 20))
+    vol_mult = coin_cfg.get("vol_mult", params.get("vol_mult", 1.0))
+    atr_sl_mult = coin_cfg.get("atr_sl", params.get("atr_sl_mult", 1.4))
+    atr_tp1_mult = coin_cfg.get("tp1_mult", params.get("atr_tp1_mult", 1.2))
+    atr_tp2_mult = coin_cfg.get("tp2_mult", params.get("atr_tp2_mult", 3.5))
+    tp1_share = coin_cfg.get("tp1_share", params.get("tp1_share", getattr(config, "TP1_SHARE", 0.3)))
+    tp2_share = 1.0 - tp1_share
+
+    hold_bars = params.get("hold_bars", 48)
+    warmup = params.get("warmup_4h", 60)
     max_dist = params.get("max_dist_ema20", 1.5)
 
     n = len(df)
@@ -136,9 +142,6 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
         start_ts = pd.Timestamp(start_ts)
     if end_ts is not None:
         end_ts = pd.Timestamp(end_ts)
-
-    tp1_share = params.get("tp1_share", getattr(config, "TP1_SHARE", 0.3))
-    tp2_share = 1.0 - tp1_share
 
     for i in range(warmup, n - 1):
         ts_i = timestamps[i]

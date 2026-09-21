@@ -102,7 +102,7 @@ def run_bot_cycle():
             print("   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
             continue
 
-        # Bước 5: Quản trị vị thế & Mở lệnh Sniper Quality
+        # Bước 5: Quản trị vị thế & Mở lệnh Sniper Custom
         trade = open_paper_trade(
             symbol=symbol,
             entry_price=tech_signal['entry_price'],
@@ -114,6 +114,8 @@ def run_bot_cycle():
             tp_pct=tech_signal.get('tp_pct'),
             tp1_pct=tech_signal.get('tp1_pct'),
             tp2_pct=tech_signal.get('tp2_pct'),
+            tp1_share=tech_signal.get('tp1_share'),
+            tp2_share=tech_signal.get('tp2_share'),
             ai_score=ai_audit.confidence_score,
             macro_regime=market_health.market_regime if market_health else "N/A",
             fng_summary=market_health.fng_summary if market_health else "N/A",
@@ -123,22 +125,26 @@ def run_bot_cycle():
         if trade:
             tp1_val = trade.get('take_profit_1', trade['take_profit'])
             tp2_val = trade.get('take_profit_2', trade['take_profit'])
+            tp1_s = int(trade.get('tp1_share', 0.3) * 100)
+            tp2_s = int(trade.get('tp2_share', 0.7) * 100)
+            coin_note = tech_signal.get('coin_strategy_desc', 'Sniper Custom')
             print(f"   └─ Bước 5 (Thực thi Sniper): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
             macro_info = (
                 f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
                 if market_health else ""
             )
             msg = (
-                f"🎯 *MỞ LỆNH MUA SNIPER BOOST* 🎯\n\n"
+                f"🎯 *MỞ LỆNH MUA SNIPER CUSTOM* 🎯\n\n"
                 f"{macro_info}"
                 f"• *Cặp coin:* `{symbol}`\n"
+                f"• *Chiến lược riêng:* _{coin_note}_\n"
                 f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
-                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt 30% & kéo SL về Entry)\n"
-                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng 70% còn lại ăn sóng lớn)\n"
+                f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt {tp1_s}% & kéo SL về Entry)\n"
+                f"• *Mục tiêu TP2 (+{trade.get('tp2_pct', 0):.1f}%):* `${tp2_val:,.2f}` (Gồng {tp2_s}% còn lại)\n"
                 f"• *Cắt lỗ SL (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
                 f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Ngưỡng yêu cầu: >={min_required_score})\n"
                 f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng 70% vị thế miễn phí rủi ro!"
+                f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng {tp2_s}% vị thế miễn phí rủi ro!"
             )
             send_telegram_alert(msg)
         else:

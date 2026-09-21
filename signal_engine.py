@@ -80,10 +80,16 @@ def analyze_technical_signal(symbol: str) -> tuple:
     vol_ma20 = float(past_candle['VOL_MA20_1h'])
     vol_ratio = (vol_1h / vol_ma20) if vol_ma20 > 0 else 0.0
 
-    rsi_min = getattr(config, 'RSI_MIN', 42)
-    rsi_max = getattr(config, 'RSI_MAX', 65)
-    adx_min = getattr(config, 'ADX_MIN', 20)
-    vol_min = getattr(config, 'VOL_RATIO_MIN', 1.0)
+    coin_cfg = config.get_coin_config(symbol) if hasattr(config, 'get_coin_config') else {}
+    rsi_min = coin_cfg.get('rsi_min', getattr(config, 'RSI_MIN', 42))
+    rsi_max = coin_cfg.get('rsi_max', getattr(config, 'RSI_MAX', 65))
+    adx_min = coin_cfg.get('adx_min', getattr(config, 'ADX_MIN', 20))
+    vol_min = coin_cfg.get('vol_mult', getattr(config, 'VOL_RATIO_MIN', 1.0))
+    sl_mult = coin_cfg.get('atr_sl', getattr(config, 'ATR_SL_MULTIPLIER', 1.4))
+    tp1_mult = coin_cfg.get('tp1_mult', getattr(config, 'ATR_TP1_MULTIPLIER', 1.2))
+    tp2_mult = coin_cfg.get('tp2_mult', getattr(config, 'ATR_TP2_MULTIPLIER', 3.5))
+    tp1_share = coin_cfg.get('tp1_share', getattr(config, 'TP1_SHARE', 0.3))
+    tp2_share = coin_cfg.get('tp2_share', getattr(config, 'TP2_SHARE', 0.7))
 
     atr_val = float(past_candle['ATR_14_1h']) if pd.notna(past_candle['ATR_14_1h']) else 0.0
 
@@ -114,14 +120,11 @@ def analyze_technical_signal(symbol: str) -> tuple:
     if cond_ema and cond_rsi and cond_adx and cond_vol and cond_not_extended:
         diagnostics["step3_trigger_1h"] = {
             "status": "PASS",
-            "detail": f"Thỏa mãn toàn bộ tiêu chuẩn Sniper: Giá > EMA20, RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Volume={vol_ratio:.2f}x."
+            "detail": f"Thỏa mãn toàn bộ tiêu chuẩn Sniper ({coin_cfg.get('desc', 'Custom')}): Giá > EMA20, RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Volume={vol_ratio:.2f}x."
         }
 
         entry_price = close_1h
         use_atr = getattr(config, 'USE_ATR_STOPS', True)
-        sl_mult = getattr(config, 'ATR_SL_MULTIPLIER', 1.4)
-        tp1_mult = getattr(config, 'ATR_TP1_MULTIPLIER', 1.2)
-        tp2_mult = getattr(config, 'ATR_TP2_MULTIPLIER', 3.5)
 
         if use_atr and atr_val > 0:
             stop_loss = entry_price - (sl_mult * atr_val)
@@ -136,10 +139,10 @@ def analyze_technical_signal(symbol: str) -> tuple:
             sl_pct = config.STOP_LOSS_PCT
             tp_pct = config.TAKE_PROFIT_PCT
             stop_loss = entry_price * (1 - sl_pct)
-            take_profit_1 = entry_price * (1 + tp_pct * 0.5)
+            take_profit_1 = entry_price * (1 + tp_pct * tp1_share)
             take_profit_2 = entry_price * (1 + tp_pct)
             take_profit = take_profit_2
-            tp1_pct = tp_pct * 0.5
+            tp1_pct = tp_pct * tp1_share
             tp2_pct = tp_pct
 
         last_5_candles = df_1h.iloc[-6:-1]
@@ -165,6 +168,9 @@ def analyze_technical_signal(symbol: str) -> tuple:
             "tp1_pct": float(tp1_pct),
             "tp2_pct": float(tp2_pct),
             "tp_pct": float(tp_pct),
+            "tp1_share": float(tp1_share),
+            "tp2_share": float(tp2_share),
+            "coin_strategy_desc": coin_cfg.get('desc', 'Sniper Custom'),
             "candles_summary": candles_summary,
             "closed_time": past_candle['timestamp'].strftime('%Y-%m-%d %H:%M UTC')
         }

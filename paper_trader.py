@@ -26,6 +26,7 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
                      ai_score: int = 0, stop_loss: float = None, take_profit: float = None,
                      take_profit_1: float = None, take_profit_2: float = None,
                      tp1_pct: float = None, tp2_pct: float = None,
+                     tp1_share: float = None, tp2_share: float = None,
                      macro_regime: str = None, fng_summary: str = None, ai_reasoning: str = None):
     """Mở một lệnh mua mô phỏng mới theo chuẩn Sniper Quality với Partial TP1 & TP2"""
     trades = load_trades()
@@ -68,6 +69,8 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
         "tp1_pct": round(actual_tp1_pct, 2),
         "tp2_pct": round(actual_tp2_pct, 2),
         "tp_pct": round(actual_tp2_pct, 2),
+        "tp1_share": tp1_share if tp1_share is not None else getattr(config, 'TP1_SHARE', 0.3),
+        "tp2_share": tp2_share if tp2_share is not None else getattr(config, 'TP2_SHARE', 0.7),
         "tp1_hit": False,
         "tp1_hit_at": None,
         "ai_score": ai_score,
