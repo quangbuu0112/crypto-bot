@@ -1,0 +1,56 @@
+{
+  "1. Cố định $50 / lệnh": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 691.9,
+    "lợi_nhuận_usd": 191.9,
+    "roi_pct": 38.38,
+    "max_drawdown_pct": 11.48,
+    "calmar_ratio": 3.34,
+    "khối_lượng_lệnh_trung_bình_usd": 50.0
+  },
+  "2. Cố định $100 / lệnh": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 883.8,
+    "lợi_nhuận_usd": 383.8,
+    "roi_pct": 76.76,
+    "max_drawdown_pct": 18.78,
+    "calmar_ratio": 4.09,
+    "khối_lượng_lệnh_trung_bình_usd": 100.0
+  },
+  "3. Fixed Risk $10 / lệnh (ATR Sizing)": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 1075.7,
+    "lợi_nhuận_usd": 575.7,
+    "roi_pct": 115.14,
+    "max_drawdown_pct": 25.53,
+    "calmar_ratio": 4.51,
+    "khối_lượng_lệnh_trung_bình_usd": 150.0
+  },
+  "4. Risk 1.0% Vốn (Lãi kép ATR)": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 1242.09,
+    "lợi_nhuận_usd": 742.09,
+    "roi_pct": 148.42,
+    "max_drawdown_pct": 32.49,
+    "calmar_ratio": 4.57,
+    "khối_lượng_lệnh_trung_bình_usd": 213.33
+  },
+  "5. Risk 1.5% Vốn (Lãi kép ATR)": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 1242.09,
+    "lợi_nhuận_usd": 742.09,
+    "roi_pct": 148.42,
+    "max_drawdown_pct": 32.49,
+    "calmar_ratio": 4.57,
+    "khối_lượng_lệnh_trung_bình_usd": 213.33
+  },
+  "6. Risk 2.0% Vốn (Lãi kép ATR)": {
+    "vốn_ban_đầu": 500.0,
+    "số_dư_cuối": 1242.09,
+    "lợi_nhuận_usd": 742.09,
+    "roi_pct": 148.42,
+    "max_drawdown_pct": 32.49,
+    "calmar_ratio": 4.57,
+    "khối_lượng_lệnh_trung_bình_usd": 213.33
+  }
+}

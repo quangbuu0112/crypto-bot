@@ -21,7 +21,13 @@ BYBIT_TESTNET_SECRET = os.getenv("BYBIT_TESTNET_SECRET")
 
 USE_TESTNET = False                               # False: Paper Trading 100% (Giá thực tế từ sàn Binance, không đặt lệnh tiền thật)
 ACTIVE_TESTNET_EXCHANGES = ['binance', 'bybit']   # Dùng khi bật USE_TESTNET = True
-ORDER_AMOUNT_USDT = float(os.getenv("ORDER_AMOUNT_USDT", 50.0))  # Số vốn mô phỏng USDT cho mỗi lệnh
+
+# Cấu hình Quản trị Vốn & Khối lượng vào lệnh (Position Sizing Mode)
+POSITION_SIZING_MODE = os.getenv("POSITION_SIZING_MODE", "ATR_RISK")  # "ATR_RISK" (mặc định) hoặc "FIXED"
+RISK_PER_TRADE_PCT = float(os.getenv("RISK_PER_TRADE_PCT", 0.015))    # Chấp nhận rủi ro 1.5% tài khoản / lệnh
+MAX_POSITION_CAP_PCT = float(os.getenv("MAX_POSITION_CAP_PCT", 0.25)) # Khống chế tối đa không quá 25% tài khoản / lệnh
+MIN_POSITION_AMOUNT_USDT = 10.0                                        # Mức vào lệnh tối thiểu sàn Binance
+ORDER_AMOUNT_USDT = float(os.getenv("ORDER_AMOUNT_USDT", 50.0))        # Số vốn cố định khi chuyển sang chế độ "FIXED"
 
 # Danh sách coin quét tín hiệu
 SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT']
@@ -109,3 +115,45 @@ TAKE_PROFIT_PCT = 0.04            # Chốt lời 4.0%
 
 # Cấu hình thời gian
 SLEEP_INTERVAL_SECONDS = 900      # Quét lại sau mỗi 15 phút
+
+def calculate_position_size(account_balance: float, sl_pct: float) -> dict:
+    """
+    Tính toán khối lượng vào lệnh (Position Sizing) theo chuẩn Quản trị Rủi ro ATR:
+    Khối lượng = (Tài khoản * Risk %) / SL %
+    Có khống chế trần tối đa (MAX_POSITION_CAP_PCT) và sàn tối thiểu (MIN_POSITION_AMOUNT_USDT).
+    """
+    mode = getattr(config, "POSITION_SIZING_MODE", "ATR_RISK") if 'config' in globals() else POSITION_SIZING_MODE
+    if mode == "FIXED" or sl_pct <= 0:
+        fixed_val = getattr(config, "ORDER_AMOUNT_USDT", 50.0) if 'config' in globals() else ORDER_AMOUNT_USDT
+        actual_sl = sl_pct if sl_pct > 0 else 0.02
+        return {
+            "mode": "FIXED",
+            "position_size_usdt": fixed_val,
+            "risk_usd": round(fixed_val * actual_sl, 2),
+            "risk_pct": round((fixed_val * actual_sl) / max(account_balance, 1.0) * 100, 2),
+            "is_capped": False
+        }
+
+    risk_pct = getattr(config, "RISK_PER_TRADE_PCT", 0.015) if 'config' in globals() else RISK_PER_TRADE_PCT
+    max_cap_pct = getattr(config, "MAX_POSITION_CAP_PCT", 0.25) if 'config' in globals() else MAX_POSITION_CAP_PCT
+    min_amt = getattr(config, "MIN_POSITION_AMOUNT_USDT", 10.0) if 'config' in globals() else MIN_POSITION_AMOUNT_USDT
+
+    safe_balance = max(account_balance, 50.0)
+    risk_usd = safe_balance * risk_pct
+    raw_pos = risk_usd / sl_pct
+    max_pos = safe_balance * max_cap_pct
+
+    is_capped = raw_pos > max_pos
+    final_pos = min(raw_pos, max_pos)
+    final_pos = max(final_pos, min_amt)
+
+    actual_risk_usd = final_pos * sl_pct
+    actual_risk_pct = (actual_risk_usd / safe_balance) * 100
+
+    return {
+        "mode": "ATR_RISK",
+        "position_size_usdt": round(final_pos, 2),
+        "risk_usd": round(actual_risk_usd, 2),
+        "risk_pct": round(actual_risk_pct, 2),
+        "is_capped": is_capped
+    }

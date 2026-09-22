@@ -45,8 +45,10 @@ def reply_telegram(chat_id: str, text: str):
 def get_help_message() -> str:
     return (
         "🤖 *DANH SÁCH LỆNH ĐIỀU KHIỂN BOT* 🤖\n\n"
+        "🎯 `/risk [số_%]` hoặc `/ruiro [số_%]`\n"
+        "└─ Xem hoặc chỉnh % rủi ro mỗi lệnh theo ATR (VD: `/risk 1.5` hoặc `/risk 2.0`)\n\n"
         "💵 `/amount [số_tiền]` hoặc `/tien [số_tiền]`\n"
-        "└─ Xem hoặc chỉnh số tiền USDT mỗi lệnh (VD: `/amount 100`)\n\n"
+        "└─ Xem hoặc chuyển sang đi vốn cố định (VD: `/amount 100`)\n\n"
         "💰 `/balance` hoặc `/sodu`\n"
         "└─ Kiểm tra số dư ví trên Binance & Bybit Testnet\n\n"
         "📜 `/orders` hoặc `/lenh`\n"
@@ -58,8 +60,8 @@ def get_help_message() -> str:
         "⚡ `/scan` hoặc `/quet`\n"
         "└─ Kích hoạt quét 5 đồng coin ngay lập tức\n\n"
         "ℹ️ `/status`\n"
-        "└─ Xem trạng thái hệ thống, model AI, cấu hình bot\n\n"
-        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `amount 100`, `orders`, `scan`, `report`) mà không cần dấu `/` cũng được!"
+        "└─ Xem trạng thái hệ thống, model AI, cấu hình Quản trị Vốn\n\n"
+        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `risk 1.5`, `amount 100`, `orders`, `report`) mà không cần dấu `/` cũng được!"
     )
 
 def handle_balance_command(chat_id: str):
@@ -122,10 +124,15 @@ def handle_orders_command(chat_id: str):
         for t in open_trades:
             strat_icon = "🎯" if t.get("strategy_type") == "SNIPER_TREND" else "📦"
             strat_label = "SNIPER TREND" if t.get("strategy_type") == "SNIPER_TREND" else "SIDEWAY RANGE"
+            pos_sz = t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0))
+            risk_u = t.get('risk_usd', 0.0)
+            risk_p = t.get('risk_pct', 0.0)
+            size_desc = f"${pos_sz:,.2f} USDT (Rủi ro: ${risk_u:,.2f} ~ {risk_p:.1f}%)" if risk_u > 0 else f"${pos_sz:,.2f} USDT"
 
             if t.get("strategy_type") == "SIDEWAY_RANGE":
                 msg += (
                     f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                    f"  ├─ Khối lượng vào: `{size_desc}`\n"
                     f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
                     f"  ├─ Mục tiêu Chốt lời: `${t.get('take_profit', 0):,.2f}` (+{t.get('tp_pct', 0):.1f}%)\n"
                     f"  ├─ Cắt lỗ SL: `${t.get('stop_loss', 0):,.2f}` (-{t.get('sl_pct', 0):.1f}%)\n"
@@ -136,6 +143,7 @@ def handle_orders_command(chat_id: str):
                 sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
                 msg += (
                     f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                    f"  ├─ Khối lượng vào: `{size_desc}`\n"
                     f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
                     f"  ├─ TP1 (Chốt 30%): `{tp1_status}`\n"
                     f"  ├─ TP2 (Gồng 70%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
@@ -151,10 +159,12 @@ def handle_orders_command(chat_id: str):
             status_icon = "🟢" if "TP" in t.get("status", "") or "BE" in t.get("status", "") else "🔴"
             pnl = t.get("pnl_pct", 0)
             pnl_sign = f"+{pnl:.1f}%" if pnl >= 0 else f"{pnl:.1f}%"
+            pnl_usd_val = t.get("pnl_usd")
+            usd_sign = f" (+${pnl_usd_val:,.2f})" if (pnl_usd_val is not None and pnl_usd_val >= 0) else (f" (-${abs(pnl_usd_val):,.2f})" if pnl_usd_val is not None else "")
             s_type = "🎯 Trend" if t.get("strategy_type") == "SNIPER_TREND" else "📦 Sideway"
             msg += (
                 f"{status_icon} *{t['symbol']}* ({s_type}) | `{t.get('status')}`\n"
-                f"  ├─ Tổng PnL: *{pnl_sign}* | Entry: `${t['entry_price']:,.2f}` -> Đóng: `${t.get('close_price', 0):,.2f}`\n"
+                f"  ├─ PnL: *{pnl_sign}*{usd_sign} | Entry: `${t['entry_price']:,.2f}` -> Đóng: `${t.get('close_price', 0):,.2f}`\n"
                 f"  └─ Thời gian: `{t.get('closed_at', t.get('opened_at', 'N/A'))}`\n"
             )
     else:
@@ -209,15 +219,65 @@ def update_env_variable(key: str, value: str):
     except Exception as e:
         print(f"❌ Lỗi cập nhật file .env: {e}")
 
-def handle_amount_command(chat_id: str, tokens: list):
-    current_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
+def handle_risk_command(chat_id: str, tokens: list):
+    """Xử lý lệnh xem và điều chỉnh % rủi ro mỗi lệnh theo ATR"""
+    current_mode = getattr(config, "POSITION_SIZING_MODE", "ATR_RISK")
+    current_risk_pct = getattr(config, "RISK_PER_TRADE_PCT", 0.015) * 100
+    max_cap = getattr(config, "MAX_POSITION_CAP_PCT", 0.25) * 100
+
     if len(tokens) == 1:
         msg = (
-            "💵 *CẤU HÌNH VỐN ĐI LỆNH (ORDER AMOUNT)* 💵\n\n"
-            f"• *Số tiền hiện tại cho mỗi lệnh:* `${current_amt:,.2f} USDT`\n\n"
-            "💡 *Cách thay đổi số tiền:*\n"
-            "Gõ `/amount <số_tiền>` (Ví dụ: `/amount 100` hoặc `/amount 50`)\n"
-            "Bot sẽ áp dụng ngay lập tức cho các lệnh tiếp theo!"
+            "🎯 *QUẢN TRỊ RỦI RO POSITION SIZING (ATR RISK)* 🎯\n\n"
+            f"• *Chế độ hiện tại:* `{current_mode}`\n"
+            f"• *Mức rủi ro mỗi lệnh:* `{current_risk_pct:.1f}%` tài khoản\n"
+            f"• *Khống chế trần tối đa:* `{max_cap:.0f}%` tài khoản / lệnh\n\n"
+            "💡 *Cách hoạt động:*\n"
+            "Khối lượng vào lệnh sẽ tự động tính theo công thức:\n"
+            "`Khối lượng = (Tài khoản * Risk %) / SL %`\n"
+            "Nếu dính SL, bạn luôn chỉ mất đúng mức rủi ro đã định.\n\n"
+            "👉 *Cách đổi:* Gõ `/risk <số_%>` (Ví dụ: `/risk 1.5` hoặc `/risk 2.0`)"
+        )
+        reply_telegram(chat_id, msg)
+        return
+
+    try:
+        val_str = tokens[1].replace("%", "").strip()
+        val = float(val_str)
+        if val < 0.1 or val > 10.0:
+            reply_telegram(chat_id, "⚠️ Mức rủi ro mỗi lệnh hợp lệ từ 0.1% đến 10.0% tài khoản.")
+            return
+
+        risk_decimal = val / 100.0
+        config.POSITION_SIZING_MODE = "ATR_RISK"
+        config.RISK_PER_TRADE_PCT = risk_decimal
+
+        update_env_variable("POSITION_SIZING_MODE", "ATR_RISK")
+        update_env_variable("RISK_PER_TRADE_PCT", str(risk_decimal))
+
+        msg = (
+            "✅ *CẬP NHẬT MỨC RỦI RO ATR THÀNH CÔNG!* ✅\n\n"
+            f"• *Chế độ:* `ATR_RISK (Động theo biến động)`\n"
+            f"• *Mức rủi ro mới:* `{val:.1f}% tài khoản / lệnh`\n"
+            f"• *Trần an toàn:* Tối đa 25% vốn / lệnh\n\n"
+            "🎯 Mọi vị thế mới sẽ tự động tính toán khối lượng theo mức rủi ro này!"
+        )
+        reply_telegram(chat_id, msg)
+    except ValueError:
+        reply_telegram(chat_id, f"❌ Giá trị `{tokens[1]}` không hợp lệ. Vui lòng nhập số, ví dụ: `/risk 1.5`.")
+
+def handle_amount_command(chat_id: str, tokens: list):
+    current_mode = getattr(config, "POSITION_SIZING_MODE", "ATR_RISK")
+    current_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
+
+    if len(tokens) == 1:
+        mode_desc = f"`ATR_RISK ({getattr(config, 'RISK_PER_TRADE_PCT', 0.015)*100:.1f}% vốn/lệnh)`" if current_mode == "ATR_RISK" else f"`FIXED (${current_amt:,.2f} USDT/lệnh)`"
+        msg = (
+            "💵 *CẤU HÌNH VỐN ĐI LỆNH (POSITION SIZING)* 💵\n\n"
+            f"• *Chế độ hiện tại:* {mode_desc}\n"
+            f"• *Số tiền cố định dự phòng:* `${current_amt:,.2f} USDT`\n\n"
+            "💡 *Cách thay đổi:*\n"
+            "• Gõ `/risk <số_%>` để dùng Quản trị rủi ro ATR (Khuyên dùng: `/risk 1.5`)\n"
+            "• Gõ `/amount <số_tiền>` để chuyển sang đi tiền cố định (VD: `/amount 100`)"
         )
         reply_telegram(chat_id, msg)
         return
@@ -232,16 +292,17 @@ def handle_amount_command(chat_id: str, tokens: list):
             reply_telegram(chat_id, "⚠️ Số tiền vào lệnh quá lớn (> $100,000). Vui lòng kiểm tra lại.")
             return
 
-        # Cập nhật trực tiếp vào bộ nhớ đang chạy
+        config.POSITION_SIZING_MODE = "FIXED"
         config.ORDER_AMOUNT_USDT = new_amt
-        # Lưu vào .env để ghi nhớ khi khởi động lại bot
+
+        update_env_variable("POSITION_SIZING_MODE", "FIXED")
         update_env_variable("ORDER_AMOUNT_USDT", str(new_amt))
 
         msg = (
-            "✅ *CẬP NHẬT SỐ TIỀN VÀO LỆNH THÀNH CÔNG!* ✅\n\n"
-            f"• *Số tiền mới:* `${new_amt:,.2f} USDT / lệnh`\n"
-            f"• *Trạng thái:* Đã áp dụng ngay lập tức & lưu vào cấu hình hệ thống.\n\n"
-            "🎯 Mọi vị thế mới từ chu kỳ tới sẽ tự động vào lệnh với số vốn này!"
+            "✅ *CHUYỂN SANG ĐI VỐN CỐ ĐỊNH THÀNH CÔNG!* ✅\n\n"
+            f"• *Chế độ:* `FIXED (Cố định)`\n"
+            f"• *Số tiền mới:* `${new_amt:,.2f} USDT / lệnh`\n\n"
+            "🎯 Từ chu kỳ tới, bot sẽ vào đúng số tiền cố định này cho mỗi lệnh."
         )
         reply_telegram(chat_id, msg)
     except ValueError:
@@ -254,15 +315,19 @@ def handle_status_command(chat_id: str):
 
     model_name = getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash')
     fallback_name = getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
-    order_amt = getattr(config, 'ORDER_AMOUNT_USDT', 50.0)
     dual_mode = "BẬT (Trend + Sideway)" if getattr(config, 'ENABLE_DUAL_REGIME', True) else "TẮT (Chỉ Trend)"
+    sizing_mode = getattr(config, 'POSITION_SIZING_MODE', 'ATR_RISK')
+    if sizing_mode == "ATR_RISK":
+        sizing_desc = f"ATR_RISK ({getattr(config, 'RISK_PER_TRADE_PCT', 0.015)*100:.1f}%/lệnh | Trần {getattr(config, 'MAX_POSITION_CAP_PCT', 0.25)*100:.0f}%)"
+    else:
+        sizing_desc = f"FIXED (${getattr(config, 'ORDER_AMOUNT_USDT', 50.0):,.2f} USDT/lệnh)"
 
     msg = (
         "📊 *THÔNG TIN HỆ THỐNG BOT (DUAL REGIME)* 📊\n\n"
         f"• *Chế độ vận hành:* `DUAL REGIME: {dual_mode}`\n"
         f"  ├─ 🎯 *Trend:* `30% TP1 / 70% TP2 (SL ATR tối ưu)`\n"
         f"  └─ 📦 *Sideway:* `Bắt đáy Lower BB + RSI <= 38 (TP SMA20)`\n"
-        f"• *Vốn mỗi lệnh:* `${order_amt:,.2f} USDT`\n"
+        f"• *Quản trị Vốn:* `{sizing_desc}`\n"
         f"• *Thời gian chạy (Uptime):* `{hours}h {minutes}m {seconds}s`\n"
         f"• *Chu kỳ quét:* Mỗi `{config.SLEEP_INTERVAL_SECONDS // 60} phút`\n"
         f"• *Danh mục theo dõi:* `{', '.join(config.SYMBOLS)}`\n"
@@ -300,15 +365,18 @@ def handle_report_command(chat_id: str):
     total_closed = len(closed_trades)
     win_rate = (len(wins) / total_closed) * 100 if total_closed > 0 else 0.0
     total_pnl = sum(float(t.get("pnl_pct", 0)) for t in closed_trades)
+    total_usd = sum(float(t.get("pnl_usd", 0.0)) for t in closed_trades)
     avg_win = sum(float(t.get("pnl_pct", 0)) for t in wins) / len(wins) if wins else 0.0
     avg_loss = sum(float(t.get("pnl_pct", 0)) for t in losses) / len(losses) if losses else 0.0
+
+    usd_summary = f" (*{total_usd:+,.2f} USDT*)" if total_usd != 0 else ""
 
     msg = (
         "📊 *BÁO CÁO TỔNG HỢP HIỆU SUẤT BOT* 📊\n\n"
         f"• *Tổng số lệnh đã đóng:* `{total_closed} lệnh`\n"
         f"• *Thắng (WIN):* `{len(wins)} lệnh` (*{win_rate:.1f}%*)\n"
         f"• *Thua (LOSS):* `{len(losses)} lệnh` (*{100 - win_rate:.1f}%*)\n"
-        f"• *Tổng PnL tích lũy:* *{total_pnl:+.2f}%*\n"
+        f"• *Tổng PnL tích lũy:* *{total_pnl:+.2f}%*{usd_summary}\n"
         f"• *Lãi trung bình / WIN:* `+{avg_win:.2f}%`\n"
         f"• *Lỗ trung bình / LOSS:* `{avg_loss:.2f}%`\n\n"
         "📁 _Toàn bộ nhật ký chi tiết được lưu trong file report._"
@@ -325,6 +393,9 @@ def process_message(chat_id: str, text: str, scan_callback=None):
 
     if cmd in ['/start', '/help', 'help', 'menu', 'trogiup']:
         reply_telegram(chat_id, get_help_message())
+
+    elif cmd in ['/risk', '/ruiro', 'risk', 'ruiro']:
+        handle_risk_command(chat_id, tokens)
 
     elif cmd in ['/amount', '/setamount', '/tien', '/von', 'amount', 'setamount', 'tien', 'von']:
         handle_amount_command(chat_id, tokens)

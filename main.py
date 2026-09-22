@@ -131,20 +131,27 @@ def run_bot_cycle():
                 f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
                 if market_health else ""
             )
+            pos_amt = trade.get('position_size_usdt', 50.0)
+            risk_usd = trade.get('risk_usd', 0.0)
+            risk_pct = trade.get('risk_pct', 0.0)
+            sizing_mode = trade.get('sizing_mode', 'ATR_RISK')
+
+            sizing_desc = f"${pos_amt:,.2f} USDT (Rủi ro: ${risk_usd:,.2f} ~ {risk_pct:.1f}%)" if sizing_mode == "ATR_RISK" else f"${pos_amt:,.2f} USDT (Cố định)"
 
             if strat_type == "SIDEWAY_RANGE":
-                print(f"   └─ Bước 5 (Thực thi Sideway Range): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP: ${trade['take_profit']:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+                print(f"   └─ Bước 5 (Thực thi Sideway Range): [THÀNH CÔNG] Mở MUA ${pos_amt:,.2f} tại ${trade['entry_price']:,.2f} | Rủi ro: ${risk_usd:,.2f} ({risk_pct:.1f}%) | TP: ${trade['take_profit']:,.2f} | SL: ${trade['stop_loss']:,.2f}")
                 msg = (
                     f"📦 *MỞ LỆNH MUA SIDEWAY RANGE* 📦\n\n"
                     f"{macro_info}"
                     f"• *Cặp coin:* `{symbol}`\n"
+                    f"• *Khối lượng vào:* `{sizing_desc}`\n"
                     f"• *Chiến lược:* _Bắt đáy Lower BB + RSI quá bán ({tech_signal.get('rsi', 0):.1f})_\n"
                     f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
                     f"• *Mục tiêu Chốt lời (+{trade.get('tp_pct', 0):.1f}%):* `${trade['take_profit']:,.2f}` (Trục giữa SMA20)\n"
                     f"• *Cắt lỗ chặt (-{trade.get('sl_pct', 0):.1f}%):* `${trade['stop_loss']:,.2f}`\n\n"
                     f"🧠 *Gemini AI Audit:* Điểm `{ai_audit.confidence_score}/10` (Yêu cầu >={min_required_score})\n"
                     f"• *Lý do:* {ai_audit.ai_reasoning}\n\n"
-                    f"⚡ *Cơ chế:* Lướt sóng biên hộp ngắn hạn, chốt lời nhanh bảo toàn lợi nhuận!"
+                    f"⚡ *Cơ chế:* Quản lý vốn ATR Risk, lướt sóng biên hộp ngắn hạn!"
                 )
             else:
                 tp1_val = trade.get('take_profit_1', trade['take_profit'])
@@ -152,11 +159,12 @@ def run_bot_cycle():
                 tp1_s = int(trade.get('tp1_share', 0.3) * 100)
                 tp2_s = int(trade.get('tp2_share', 0.7) * 100)
                 coin_note = tech_signal.get('coin_strategy_desc', 'Sniper Custom')
-                print(f"   └─ Bước 5 (Thực thi Sniper Trend): [THÀNH CÔNG] Mở MUA tại ${trade['entry_price']:,.2f} | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
+                print(f"   └─ Bước 5 (Thực thi Sniper Trend): [THÀNH CÔNG] Mở MUA ${pos_amt:,.2f} tại ${trade['entry_price']:,.2f} | Rủi ro: ${risk_usd:,.2f} ({risk_pct:.1f}%) | TP1: ${tp1_val:,.2f} | TP2: ${tp2_val:,.2f} | SL: ${trade['stop_loss']:,.2f}")
                 msg = (
                     f"🎯 *MỞ LỆNH MUA SNIPER TREND* 🎯\n\n"
                     f"{macro_info}"
                     f"• *Cặp coin:* `{symbol}`\n"
+                    f"• *Khối lượng vào:* `{sizing_desc}`\n"
                     f"• *Chiến lược riêng:* _{coin_note}_\n"
                     f"• *Giá Mua (Entry):* `${trade['entry_price']:,.2f}`\n"
                     f"• *Mục tiêu TP1 (+{trade.get('tp1_pct', 0):.1f}%):* `${tp1_val:,.2f}` (Chốt {tp1_s}% & kéo SL về Entry)\n"

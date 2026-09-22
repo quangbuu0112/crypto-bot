@@ -22,6 +22,19 @@ def save_trades(trades):
     with open(TRADES_FILE, 'w', encoding='utf-8') as f:
         json.dump(trades, f, ensure_ascii=False, indent=2)
 
+def get_current_paper_balance(initial_balance: float = 500.0) -> float:
+    """Tính toán số dư tài khoản Paper Trading hiện tại từ lịch sử giao dịch"""
+    trades = load_trades()
+    balance = initial_balance
+    for t in trades:
+        if t.get("status") != "OPEN":
+            if "pnl_usd" in t:
+                balance += float(t.get("pnl_usd", 0.0))
+            elif "pnl_pct" in t:
+                pos_sz = float(t.get("position_size_usdt", getattr(config, "ORDER_AMOUNT_USDT", 50.0)))
+                balance += pos_sz * (float(t.get("pnl_pct", 0.0)) / 100.0)
+    return max(round(balance, 2), 50.0)
+
 def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_pct: float = None,
                      ai_score: int = 0, stop_loss: float = None, take_profit: float = None,
                      take_profit_1: float = None, take_profit_2: float = None,
@@ -29,7 +42,7 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
                      tp1_share: float = None, tp2_share: float = None,
                      macro_regime: str = None, fng_summary: str = None, ai_reasoning: str = None,
                      strategy_type: str = "SNIPER_TREND", strategy_desc: str = None):
-    """Mở một lệnh mua mô phỏng mới theo chuẩn DUAL Regime (Sniper Trend hoặc Sideway Range)"""
+    """Mở một lệnh mua mô phỏng mới theo chuẩn DUAL Regime và Position Sizing Động"""
     trades = load_trades()
 
     # Kiểm tra xem coin này đã có lệnh nào đang chạy chưa (tránh trùng lệnh)
@@ -45,14 +58,19 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
     actual_tp1_pct = (calculated_tp1 - entry_price) / entry_price * 100
     actual_tp2_pct = (calculated_tp2 - entry_price) / entry_price * 100
 
+    # Tính toán khối lượng vào lệnh theo công thức Position Sizing
+    current_bal = get_current_paper_balance()
+    sl_decimal = (entry_price - calculated_sl) / entry_price if entry_price > 0 else 0.02
+    sizing_info = config.calculate_position_size(current_bal, sl_decimal)
+    position_size_usdt = sizing_info["position_size_usdt"]
+
     trade_id = f"{symbol.replace('/', '_')}_{int(time.time())}"
     opened_at = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
 
     # Đặt lệnh Mua song song lên tất cả các sàn Testnet được kích hoạt (nếu bật USE_TESTNET)
     exchange_orders = {}
     if getattr(config, "USE_TESTNET", False):
-        usdt_amt = getattr(config, "ORDER_AMOUNT_USDT", 50.0)
-        multi_res = multi_exchange_trader.place_multi_market_buy(symbol, usdt_amount=usdt_amt)
+        multi_res = multi_exchange_trader.place_multi_market_buy(symbol, usdt_amount=position_size_usdt)
         for ex_name, o_data in multi_res.items():
             if o_data.get('success'):
                 exchange_orders[ex_name] = o_data.get('order_id')
@@ -62,6 +80,11 @@ def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_p
         "symbol": symbol,
         "strategy_type": strategy_type,
         "strategy_desc": strategy_desc or ("🎯 SNIPER TREND" if strategy_type == "SNIPER_TREND" else "📦 SIDEWAY RANGE"),
+        "position_size_usdt": position_size_usdt,
+        "risk_usd": sizing_info["risk_usd"],
+        "risk_pct": sizing_info["risk_pct"],
+        "sizing_mode": sizing_info["mode"],
+        "account_balance_at_entry": current_bal,
         "entry_price": round(entry_price, 4),
         "initial_sl": round(calculated_sl, 4),
         "stop_loss": round(calculated_sl, 4),
@@ -110,6 +133,7 @@ def check_and_update_paper_trades():
             entry_price = t['entry_price']
             now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
             strat_type = t.get('strategy_type', 'SNIPER_TREND')
+            pos_size = float(t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0)))
 
             # =========================================================
             # XỬ LÝ VỊ THẾ SIDEWAY RANGE (BẮT ĐÁY BIÊN HỘP)
@@ -123,16 +147,18 @@ def check_and_update_paper_trades():
                     t['close_price'] = current_price
                     pnl_pct = (current_price - entry_price) / entry_price * 100
                     t['pnl_pct'] = round(pnl_pct, 2)
+                    t['pnl_usd'] = round(pos_size * (pnl_pct / 100.0), 2)
                     t['closed_at'] = now_str
-                    events.append((t, f"📦 [SIDEWAY] CHỐT LỜI BIÊN TRÊN (+{t['pnl_pct']:.1f}%)"))
+                    events.append((t, f"📦 [SIDEWAY] CHỐT LỜI BIÊN TRÊN (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
                 elif current_price <= sl_target:
                     t['status'] = 'CLOSED_SL'
                     t['close_price'] = current_price
                     pnl_pct = (current_price - entry_price) / entry_price * 100
                     t['pnl_pct'] = round(pnl_pct, 2)
+                    t['pnl_usd'] = round(pos_size * (pnl_pct / 100.0), 2)
                     t['closed_at'] = now_str
-                    events.append((t, f"🔴 [SIDEWAY] CẮT LỖ THỦNG BIÊN (-{abs(t['pnl_pct']):.1f}%)"))
+                    events.append((t, f"🔴 [SIDEWAY] CẮT LỖ THỦNG BIÊN (-{abs(t['pnl_pct']):.1f}% | -${abs(t['pnl_usd']):,.2f})"))
 
             # =========================================================
             # XỬ LÝ VỊ THẾ SNIPER TREND (2 GIAI ĐOẠN TP1 + TP2)
@@ -150,10 +176,11 @@ def check_and_update_paper_trades():
                         t['tp1_hit_at'] = now_str
                         t['tp1_price'] = current_price
                         t['stop_loss'] = entry_price # Dời SL về hòa vốn
+                        tp1_gain_usd = round(pos_size * tp1_share * (t.get('tp1_pct', 0) / 100.0), 2)
 
                         events.append((
                             t,
-                            f"🎯 [SNIPER] CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}%)\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
+                            f"🎯 [SNIPER] CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}% | +${tp1_gain_usd:,.2f})\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
                         ))
 
                     # Chưa chạm TP1 mà chạm Stop Loss ban đầu
@@ -162,8 +189,9 @@ def check_and_update_paper_trades():
                         t['close_price'] = current_price
                         pnl_pct = (current_price - entry_price) / entry_price * 100
                         t['pnl_pct'] = round(pnl_pct, 2)
+                        t['pnl_usd'] = round(pos_size * (pnl_pct / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"🔴 [SNIPER] CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}%)"))
+                        events.append((t, f"🔴 [SNIPER] CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}% | -${abs(t['pnl_usd']):,.2f})"))
 
                 else:
                     # Đã chốt 30% TP1, tiếp tục chạm TP2
@@ -173,8 +201,9 @@ def check_and_update_paper_trades():
                         tp1_pnl = t.get('tp1_pct', 0)
                         tp2_pnl = (current_price - entry_price) / entry_price * 100
                         t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
+                        t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"🏆 [SNIPER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% TỔNG LÃI)"))
+                        events.append((t, f"🏆 [SNIPER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
                     # Đã chốt 30% TP1, quay đầu về Entry hòa vốn
                     elif current_price <= t['stop_loss']:
@@ -182,8 +211,9 @@ def check_and_update_paper_trades():
                         t['close_price'] = current_price
                         tp1_pnl = t.get('tp1_pct', 0)
                         t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
+                        t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}%)"))
+                        events.append((t, f"🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
         except Exception as e:
             print(f"❌ Lỗi lấy giá {symbol}: {e}")
