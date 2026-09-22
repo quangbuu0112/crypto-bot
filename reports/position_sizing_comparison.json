@@ -1,0 +1,40 @@
+{
+  "Fixed $50": {
+    "final_balance": 691.9,
+    "net_profit": 191.9,
+    "roi_pct": 38.38,
+    "max_drawdown_pct": 11.48,
+    "calmar_ratio": 3.34
+  },
+  "Fixed $100": {
+    "final_balance": 883.8,
+    "net_profit": 383.8,
+    "roi_pct": 76.76,
+    "max_drawdown_pct": 18.78,
+    "calmar_ratio": 4.09
+  },
+  "ATR Risk 1.5% (Compounding)": {
+    "final_balance": 2044.28,
+    "net_profit": 1544.28,
+    "roi_pct": 308.86,
+    "max_drawdown_pct": 46.99,
+    "calmar_ratio": 6.57,
+    "avg_pos_size": 474.44
+  },
+  "ATR Risk 2.0% (Compounding)": {
+    "final_balance": 2044.28,
+    "net_profit": 1544.28,
+    "roi_pct": 308.86,
+    "max_drawdown_pct": 46.99,
+    "calmar_ratio": 6.57,
+    "avg_pos_size": 474.44
+  },
+  "ATR Risk 3.0% (Compounding)": {
+    "final_balance": 2044.28,
+    "net_profit": 1544.28,
+    "roi_pct": 308.86,
+    "max_drawdown_pct": 46.99,
+    "calmar_ratio": 6.57,
+    "avg_pos_size": 474.44
+  }
+}

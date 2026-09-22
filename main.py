@@ -5,7 +5,7 @@ import requests
 import config
 from signal_engine import analyze_technical_signal
 from gemini_auditor import audit_signal_with_gemini
-from paper_trader import open_paper_trade, check_and_update_paper_trades
+from paper_trader import open_paper_trade, check_and_update_paper_trades, is_symbol_in_cooldown
 from market_gatekeeper import check_market_health
 from telegram_commander import start_telegram_listener
 
@@ -56,6 +56,13 @@ def run_bot_cycle():
     # KIỂM TRA CHI TIẾT TỪNG ĐỒNG COIN THEO TỪNG BƯỚC
     for symbol in config.SYMBOLS:
         print(f"\n👉 [KIỂM TRA COIN] {symbol}:")
+
+        # 🛡️ KIỂM TRA GIÁP 3: MẠCH NGẮT CHUỖI THUA (COOLDOWN)
+        cooldown_info = is_symbol_in_cooldown(symbol)
+        if cooldown_info.get("in_cooldown"):
+            print(f"   └─ 🛡️ [GIÁP 3: COOLDOWN] {cooldown_info.get('detail')} -> Tạm dừng quét coin này để bảo toàn vốn.")
+            continue
+
         tech_signal, diag = analyze_technical_signal(symbol)
 
         # Bước 2: Trend Alignment (Khung 4H)
@@ -63,6 +70,9 @@ def run_bot_cycle():
         if step2:
             if step2["status"] == "PASS":
                 print(f"   ├─ Bước 2 (Trend 4H): [ĐẠT] {step2['detail']}")
+            elif step2["status"] == "BLOCKED_BY_SHIELD":
+                print(f"   └─ Bước 2 (Trend 4H): [CHẶN BỞI GIÁP BẢO VỆ] {step2['detail']}")
+                continue
             else:
                 print(f"   └─ Bước 2 (Trend 4H): [TỪ CHỐI] {step2['detail']}")
                 continue
@@ -72,6 +82,9 @@ def run_bot_cycle():
         if step3:
             if step3["status"] == "PASS":
                 print(f"   ├─ Bước 3 (Kỹ thuật 1H): [ĐẠT] {step3['detail']}")
+            elif step3["status"] == "BLOCKED_BY_SHIELD":
+                print(f"   └─ Bước 3 (Kỹ thuật 1H): [CHẶN BỞI GIÁP BẢO VỆ] {step3['detail']}")
+                continue
             else:
                 print(f"   └─ Bước 3 (Kỹ thuật 1H): [TỪ CHỐI] {step3['detail']}")
                 continue

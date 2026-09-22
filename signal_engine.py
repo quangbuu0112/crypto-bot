@@ -16,12 +16,43 @@ def fetch_ohlcv_data(symbol: str, timeframe: str, limit: int = 300) -> pd.DataFr
         print(f"❌ Lỗi kết nối API Binance ({symbol} - {timeframe}): {e}")
         return None
 
+def check_btc_macro_health() -> dict:
+    """
+    🛡️ GIÁP 1: BỘ LỌC VĨ MÔ BITCOIN (BTC MACRO FILTER)
+    Kiểm tra trạng thái nến 1D của BTC:
+    - Nếu BTC 1D < EMA50 VÀ RSI 1D < 45 -> Thị trường đang trong pha Bearish Shock (Cấm bắt đáy Altcoin).
+    """
+    try:
+        df_btc_1d = fetch_ohlcv_data("BTC/USDT", timeframe="1d", limit=60)
+        if df_btc_1d is None or len(df_btc_1d) < 50:
+            return {"is_bearish": False, "detail": "Không đủ dữ liệu BTC 1D"}
+
+        df_btc_1d['EMA_50'] = ta.ema(df_btc_1d['close'], length=50)
+        df_btc_1d['RSI_1D'] = ta.rsi(df_btc_1d['close'], length=14)
+
+        closed_btc = df_btc_1d.iloc[-2]
+        close_btc = float(closed_btc['close'])
+        ema50_btc = float(closed_btc['EMA_50'])
+        rsi_btc = float(closed_btc['RSI_1D'])
+
+        is_bearish = (close_btc < ema50_btc) and (rsi_btc < 45)
+        return {
+            "is_bearish": is_bearish,
+            "close": close_btc,
+            "ema50": ema50_btc,
+            "rsi": rsi_btc,
+            "detail": f"BTC 1D: Close=${close_btc:,.0f} {'<' if close_btc < ema50_btc else '>'} EMA50(${ema50_btc:,.0f}), RSI={rsi_btc:.1f}"
+        }
+    except Exception as e:
+        return {"is_bearish": False, "detail": f"Lỗi tính BTC Macro: {e}"}
+
 def analyze_technical_signal(symbol: str) -> tuple:
     """
     Phân tích kỹ thuật Đa khung thời gian Thích ứng Kép (Dual-Regime Adaptive Engine).
     Tự động chọn 1 trong 2 chế độ:
-      1. 🎯 SNIPER_TREND  : Khi 4H có Trend mạnh (Pullback EMA20, RSI tối ưu, gồng TP1/TP2)
+      1. 🎯 SNIPER_TREND  : Khi 4H có Trend mạnh (Pullback EMA20, RSI tối ưu, gồng TP1/TP2 Runner)
       2. 📦 SIDEWAY_RANGE : Khi thị trường đi ngang (Bắt đáy dải dưới Lower BB, RSI quá bán <= 38, nến rút chân)
+    Được bảo vệ bởi 3 Lớp Giáp Phòng Thủ (BTC Macro, Panic Dump, Cooldown).
     Trả về: (tech_signal_dict, diagnostics_dict)
     """
     diagnostics = {
@@ -84,10 +115,10 @@ def analyze_technical_signal(symbol: str) -> tuple:
     adx_min = coin_cfg.get('adx_min', getattr(config, 'ADX_MIN', 20))
     vol_min = coin_cfg.get('vol_mult', getattr(config, 'VOL_RATIO_MIN', 1.0))
     sl_mult = coin_cfg.get('atr_sl', getattr(config, 'ATR_SL_MULTIPLIER', 1.4))
-    tp1_mult = coin_cfg.get('tp1_mult', getattr(config, 'ATR_TP1_MULTIPLIER', 1.2))
-    tp2_mult = coin_cfg.get('tp2_mult', getattr(config, 'ATR_TP2_MULTIPLIER', 3.5))
-    tp1_share = coin_cfg.get('tp1_share', getattr(config, 'TP1_SHARE', 0.3))
-    tp2_share = coin_cfg.get('tp2_share', getattr(config, 'TP2_SHARE', 0.7))
+    tp1_mult = coin_cfg.get('tp1_mult', getattr(config, 'ATR_TP1_MULTIPLIER', 1.5))
+    tp2_mult = coin_cfg.get('tp2_mult', getattr(config, 'ATR_TP2_MULTIPLIER', 5.5))
+    tp1_share = coin_cfg.get('tp1_share', getattr(config, 'TP1_SHARE', 0.35))
+    tp2_share = coin_cfg.get('tp2_share', getattr(config, 'TP2_SHARE', 0.65))
 
     strategy_type = None
 
@@ -123,6 +154,31 @@ def analyze_technical_signal(symbol: str) -> tuple:
         is_bullish_reversal = (close_1h >= open_1h) or ((close_1h - low_1h) >= 0.4 * (high_1h - low_1h + 1e-8))
 
         if is_touch_bbl and is_oversold and is_bullish_reversal:
+            # 🛡️ KIỂM TRA GIÁP 1: BTC MACRO FILTER
+            if getattr(config, 'ENABLE_BTC_MACRO_FILTER', True) and symbol != "BTC/USDT":
+                btc_macro = check_btc_macro_health()
+                if btc_macro["is_bearish"]:
+                    diagnostics["step2_trend_4h"] = {
+                        "status": "BLOCKED_BY_SHIELD",
+                        "detail": f"🛡️ [GIÁP 1: BTC MACRO] {btc_macro['detail']} -> Chặn lệnh bắt đáy Altcoin để bảo toàn vốn."
+                    }
+                    return None, diagnostics
+
+            # 🛡️ KIỂM TRA GIÁP 2: PANIC DUMP VOLUME FILTER
+            if getattr(config, 'ENABLE_PANIC_VOLUME_FILTER', True) and len(df_1h) >= 3:
+                prev_candle = df_1h.iloc[-3]
+                p_open = float(prev_candle['open'])
+                p_close = float(prev_candle['close'])
+                p_vol = float(prev_candle['volume'])
+                p_vol_ma = float(df_1h['VOL_MA20_1h'].iloc[-3]) if pd.notna(df_1h['VOL_MA20_1h'].iloc[-3]) else 1.0
+                is_panic_dump = (p_close < p_open) and (p_vol >= 2.2 * p_vol_ma) and ((p_open - p_close) >= 1.2 * atr_val)
+                if is_panic_dump:
+                    diagnostics["step3_trigger_1h"] = {
+                        "status": "BLOCKED_BY_SHIELD",
+                        "detail": f"🛡️ [GIÁP 2: PANIC DUMP] Nến trước xả Volume={p_vol/p_vol_ma:.1f}x > 2.2x MA20. Hủy bỏ tín hiệu bắt dao rơi."
+                    }
+                    return None, diagnostics
+
             strategy_type = "SIDEWAY_RANGE"
             diagnostics["step2_trend_4h"] = {
                 "status": "PASS",
@@ -169,13 +225,14 @@ def analyze_technical_signal(symbol: str) -> tuple:
         tp_pct = tp2_pct
         act_tp1_share = tp1_share
         act_tp2_share = tp2_share
-        strategy_desc = f"🎯 SNIPER TREND: {coin_cfg.get('desc', 'Trend Pullback')}"
+        strategy_desc = f"🎯 SNIPER TREND: {coin_cfg.get('desc', 'Trend Pullback')} (TP1: 1.5x ATR, TP2: 5.5x ATR)"
     else:
-        # SIDEWAY RANGE: Cắt lỗ chặt 1.2x ATR, Chốt lời tại SMA20 hoặc tối thiểu +2.2%
+        # SIDEWAY RANGE: Cắt lỗ chặt 1.2x ATR, Chốt lời tại SMA20 / 1.3x ATR
         sideway_sl_mult = getattr(config, 'SIDEWAY_SL_ATR_MULT', 1.2)
+        sideway_tp_mult = getattr(config, 'SIDEWAY_TP_ATR_MULT', 1.3)
         sideway_tp_min = getattr(config, 'SIDEWAY_TP_MIN_PCT', 0.022)
         stop_loss = entry_price - (sideway_sl_mult * atr_val)
-        target_tp = max(sma20_1h, entry_price * (1 + sideway_tp_min))
+        target_tp = max(sma20_1h, entry_price + sideway_tp_mult * atr_val, entry_price * (1 + sideway_tp_min))
         take_profit_1 = target_tp
         take_profit_2 = target_tp
         take_profit = target_tp
@@ -185,7 +242,7 @@ def analyze_technical_signal(symbol: str) -> tuple:
         tp2_pct = tp_pct
         act_tp1_share = 1.0
         act_tp2_share = 0.0
-        strategy_desc = "📦 SIDEWAY RANGE: Bắt đáy Lower BB + RSI quá bán, Chốt lời SMA20 / +2.2%"
+        strategy_desc = "📦 SIDEWAY RANGE: Bắt đáy Lower BB + RSI quá bán, Chốt lời SMA20 / 1.3x ATR (SL 1.2x ATR)"
 
     signal_data = {
         "symbol": symbol,

@@ -1,0 +1,152 @@
+{
+  "24 Tháng (Toàn bộ chu kỳ)": {
+    "KHONG_GIAP (Raw Dual)": {
+      "trades": 639,
+      "wins": 384,
+      "losses": 255,
+      "win_rate": 60.09,
+      "profit_factor": 1.35,
+      "avg_win": 3.69,
+      "avg_loss": 4.12,
+      "payoff_ratio": 0.9,
+      "final_balance": 1159.55,
+      "net_profit": 659.55,
+      "roi": 131.91,
+      "max_dd": 38.06
+    },
+    "CO_3_LOP_GIAP (Shielded Pro)": {
+      "trades": 363,
+      "wins": 220,
+      "losses": 143,
+      "win_rate": 60.61,
+      "profit_factor": 1.85,
+      "avg_win": 3.37,
+      "avg_loss": 2.82,
+      "payoff_ratio": 1.2,
+      "final_balance": 1130.71,
+      "net_profit": 630.71,
+      "roi": 126.14,
+      "max_dd": 9.77
+    }
+  },
+  "12 Tháng (1 năm)": {
+    "KHONG_GIAP (Raw Dual)": {
+      "trades": 336,
+      "wins": 206,
+      "losses": 130,
+      "win_rate": 61.31,
+      "profit_factor": 1.18,
+      "avg_win": 3.42,
+      "avg_loss": 4.63,
+      "payoff_ratio": 0.74,
+      "final_balance": 621.77,
+      "net_profit": 121.77,
+      "roi": 24.35,
+      "max_dd": 38.06
+    },
+    "CO_3_LOP_GIAP (Shielded Pro)": {
+      "trades": 142,
+      "wins": 86,
+      "losses": 56,
+      "win_rate": 60.56,
+      "profit_factor": 1.5,
+      "avg_win": 2.54,
+      "avg_loss": 2.64,
+      "payoff_ratio": 0.96,
+      "final_balance": 598.21,
+      "net_profit": 98.21,
+      "roi": 19.64,
+      "max_dd": 9.77
+    }
+  },
+  "9 Tháng gần nhất (Từng bị âm)": {
+    "KHONG_GIAP (Raw Dual)": {
+      "trades": 224,
+      "wins": 141,
+      "losses": 83,
+      "win_rate": 62.95,
+      "profit_factor": 1.01,
+      "avg_win": 3.1,
+      "avg_loss": 5.29,
+      "payoff_ratio": 0.59,
+      "final_balance": 487.15,
+      "net_profit": -12.85,
+      "roi": -2.57,
+      "max_dd": 38.06
+    },
+    "CO_3_LOP_GIAP (Shielded Pro)": {
+      "trades": 101,
+      "wins": 66,
+      "losses": 35,
+      "win_rate": 65.35,
+      "profit_factor": 1.73,
+      "avg_win": 2.33,
+      "avg_loss": 2.62,
+      "payoff_ratio": 0.89,
+      "final_balance": 586.22,
+      "net_profit": 86.22,
+      "roi": 17.24,
+      "max_dd": 7.07
+    }
+  },
+  "6 Tháng ở giữa (Pha thị trường xấu)": {
+    "KHONG_GIAP (Raw Dual)": {
+      "trades": 160,
+      "wins": 93,
+      "losses": 67,
+      "win_rate": 58.13,
+      "profit_factor": 0.82,
+      "avg_win": 3.53,
+      "avg_loss": 6.05,
+      "payoff_ratio": 0.58,
+      "final_balance": 403.85,
+      "net_profit": -96.15,
+      "roi": -19.23,
+      "max_dd": 38.06
+    },
+    "CO_3_LOP_GIAP (Shielded Pro)": {
+      "trades": 58,
+      "wins": 30,
+      "losses": 28,
+      "win_rate": 51.72,
+      "profit_factor": 0.9,
+      "avg_win": 2.34,
+      "avg_loss": 2.89,
+      "payoff_ratio": 0.81,
+      "final_balance": 489.67,
+      "net_profit": -10.33,
+      "roi": -2.07,
+      "max_dd": 7.07
+    }
+  },
+  "3 Tháng gần nhất (Pha thị trường tốt)": {
+    "KHONG_GIAP (Raw Dual)": {
+      "trades": 64,
+      "wins": 48,
+      "losses": 16,
+      "win_rate": 75.0,
+      "profit_factor": 3.22,
+      "avg_win": 2.29,
+      "avg_loss": 2.13,
+      "payoff_ratio": 1.08,
+      "final_balance": 603.12,
+      "net_profit": 103.12,
+      "roi": 20.62,
+      "max_dd": 5.57
+    },
+    "CO_3_LOP_GIAP (Shielded Pro)": {
+      "trades": 43,
+      "wins": 36,
+      "losses": 7,
+      "win_rate": 83.72,
+      "profit_factor": 7.47,
+      "avg_win": 2.32,
+      "avg_loss": 1.6,
+      "payoff_ratio": 1.45,
+      "final_balance": 598.59,
+      "net_profit": 98.59,
+      "roi": 19.72,
+      "max_dd": 1.08
+    }
+  }
+}

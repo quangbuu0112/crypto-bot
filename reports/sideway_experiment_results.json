@@ -1,0 +1,224 @@
+{
+  "3 Tháng": {
+    "SNIPER_ONLY": {
+      "size_50": {
+        "trades": 5,
+        "wins": 2,
+        "losses": 3,
+        "wr": 40.0,
+        "pnl": -0.58,
+        "pf": 0.92,
+        "balance": 499.71,
+        "roi": -0.06,
+        "max_dd": 0.76
+      },
+      "size_100": {
+        "trades": 5,
+        "wins": 2,
+        "losses": 3,
+        "wr": 40.0,
+        "pnl": -0.58,
+        "pf": 0.92,
+        "balance": 499.42,
+        "roi": -0.12,
+        "max_dd": 1.52
+      }
+    },
+    "SIDEWAY_ONLY": {
+      "size_50": {
+        "trades": 60,
+        "wins": 46,
+        "losses": 14,
+        "wr": 76.7,
+        "pnl": 75.21,
+        "pf": 3.51,
+        "balance": 537.61,
+        "roi": 7.52,
+        "max_dd": 2.28
+      },
+      "size_100": {
+        "trades": 60,
+        "wins": 46,
+        "losses": 14,
+        "wr": 76.7,
+        "pnl": 75.21,
+        "pf": 3.51,
+        "balance": 575.21,
+        "roi": 15.04,
+        "max_dd": 4.55
+      }
+    },
+    "DUAL": {
+      "size_50": {
+        "trades": 65,
+        "wins": 48,
+        "losses": 17,
+        "wr": 73.8,
+        "pnl": 74.63,
+        "pf": 2.98,
+        "balance": 537.32,
+        "roi": 7.46,
+        "max_dd": 2.28
+      },
+      "size_100": {
+        "trades": 65,
+        "wins": 48,
+        "losses": 17,
+        "wr": 73.8,
+        "pnl": 74.63,
+        "pf": 2.98,
+        "balance": 574.63,
+        "roi": 14.93,
+        "max_dd": 4.55
+      }
+    }
+  },
+  "9 Tháng": {
+    "SNIPER_ONLY": {
+      "size_50": {
+        "trades": 7,
+        "wins": 3,
+        "losses": 4,
+        "wr": 42.9,
+        "pnl": -2.02,
+        "pf": 0.79,
+        "balance": 498.99,
+        "roi": -0.2,
+        "max_dd": 0.96
+      },
+      "size_100": {
+        "trades": 7,
+        "wins": 3,
+        "losses": 4,
+        "wr": 42.9,
+        "pnl": -2.02,
+        "pf": 0.79,
+        "balance": 497.98,
+        "roi": -0.4,
+        "max_dd": 1.91
+      }
+    },
+    "SIDEWAY_ONLY": {
+      "size_50": {
+        "trades": 218,
+        "wins": 141,
+        "losses": 77,
+        "wr": 64.7,
+        "pnl": 43.67,
+        "pf": 1.11,
+        "balance": 521.84,
+        "roi": 4.37,
+        "max_dd": 15.32
+      },
+      "size_100": {
+        "trades": 218,
+        "wins": 141,
+        "losses": 77,
+        "wr": 64.7,
+        "pnl": 43.67,
+        "pf": 1.11,
+        "balance": 543.67,
+        "roi": 8.73,
+        "max_dd": 30.37
+      }
+    },
+    "DUAL": {
+      "size_50": {
+        "trades": 225,
+        "wins": 144,
+        "losses": 81,
+        "wr": 64.0,
+        "pnl": 41.65,
+        "pf": 1.1,
+        "balance": 520.83,
+        "roi": 4.17,
+        "max_dd": 15.34
+      },
+      "size_100": {
+        "trades": 225,
+        "wins": 144,
+        "losses": 81,
+        "wr": 64.0,
+        "pnl": 41.65,
+        "pf": 1.1,
+        "balance": 541.65,
+        "roi": 8.33,
+        "max_dd": 30.45
+      }
+    }
+  },
+  "24 Tháng (Toàn bộ)": {
+    "SNIPER_ONLY": {
+      "size_50": {
+        "trades": 159,
+        "wins": 92,
+        "losses": 67,
+        "wr": 57.9,
+        "pnl": 74.03,
+        "pf": 1.42,
+        "balance": 537.01,
+        "roi": 7.4,
+        "max_dd": 4.1
+      },
+      "size_100": {
+        "trades": 159,
+        "wins": 92,
+        "losses": 67,
+        "wr": 57.9,
+        "pnl": 74.03,
+        "pf": 1.42,
+        "balance": 574.03,
+        "roi": 14.81,
+        "max_dd": 7.44
+      }
+    },
+    "SIDEWAY_ONLY": {
+      "size_50": {
+        "trades": 500,
+        "wins": 317,
+        "losses": 183,
+        "wr": 63.4,
+        "pnl": 307.88,
+        "pf": 1.36,
+        "balance": 653.94,
+        "roi": 30.79,
+        "max_dd": 12.14
+      },
+      "size_100": {
+        "trades": 500,
+        "wins": 317,
+        "losses": 183,
+        "wr": 63.4,
+        "pnl": 307.88,
+        "pf": 1.36,
+        "balance": 807.88,
+        "roi": 61.58,
+        "max_dd": 19.99
+      }
+    },
+    "DUAL": {
+      "size_50": {
+        "trades": 657,
+        "wins": 408,
+        "losses": 249,
+        "wr": 62.1,
+        "pnl": 382.4,
+        "pf": 1.37,
+        "balance": 691.2,
+        "roi": 38.24,
+        "max_dd": 11.47
+      },
+      "size_100": {
+        "trades": 657,
+        "wins": 408,
+        "losses": 249,
+        "wr": 62.1,
+        "pnl": 382.4,
+        "pf": 1.37,
+        "balance": 882.4,
+        "roi": 76.48,
+        "max_dd": 18.78
+      }
+    }
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "24 Tháng (Toàn bộ)": {
+    "PRE_UPDATE (Trend Only)": {
+      "size_50": {
+        "trades": 139,
+        "wins": 79,
+        "losses": 60,
+        "wr": 56.8,
+        "pnl": 75.92,
+        "pf": 1.47,
+        "balance": 537.96,
+        "net_profit": 37.96,
+        "roi": 7.59,
+        "max_dd": 3.57
+      },
+      "size_100": {
+        "trades": 139,
+        "wins": 79,
+        "losses": 60,
+        "wr": 56.8,
+        "pnl": 75.92,
+        "pf": 1.47,
+        "balance": 575.92,
+        "net_profit": 75.92,
+        "roi": 15.18,
+        "max_dd": 6.5
+      }
+    },
+    "POST_UPDATE (DUAL Regime)": {
+      "size_50": {
+        "trades": 639,
+        "wins": 396,
+        "losses": 243,
+        "wr": 62.0,
+        "pnl": 383.8,
+        "pf": 1.38,
+        "balance": 691.9,
+        "net_profit": 191.9,
+        "roi": 38.38,
+        "max_dd": 11.48
+      },
+      "size_100": {
+        "trades": 639,
+        "wins": 396,
+        "losses": 243,
+        "wr": 62.0,
+        "pnl": 383.8,
+        "pf": 1.38,
+        "balance": 883.8,
+        "net_profit": 383.8,
+        "roi": 76.76,
+        "max_dd": 18.78
+      }
+    }
+  },
+  "12 Tháng (1 năm)": {
+    "PRE_UPDATE (Trend Only)": {
+      "size_50": {
+        "trades": 31,
+        "wins": 14,
+        "losses": 17,
+        "wr": 45.2,
+        "pnl": -13.89,
+        "pf": 0.74,
+        "balance": 493.06,
+        "net_profit": -6.94,
+        "roi": -1.39,
+        "max_dd": 3.88
+      },
+      "size_100": {
+        "trades": 31,
+        "wins": 14,
+        "losses": 17,
+        "wr": 45.2,
+        "pnl": -13.89,
+        "pf": 0.74,
+        "balance": 486.11,
+        "net_profit": -13.89,
+        "roi": -2.78,
+        "max_dd": 7.63
+      }
+    },
+    "POST_UPDATE (DUAL Regime)": {
+      "size_50": {
+        "trades": 336,
+        "wins": 211,
+        "losses": 125,
+        "wr": 62.8,
+        "pnl": 134.45,
+        "pf": 1.24,
+        "balance": 567.23,
+        "net_profit": 67.23,
+        "roi": 13.45,
+        "max_dd": 14.09
+      },
+      "size_100": {
+        "trades": 336,
+        "wins": 211,
+        "losses": 125,
+        "wr": 62.8,
+        "pnl": 134.45,
+        "pf": 1.24,
+        "balance": 634.45,
+        "net_profit": 134.45,
+        "roi": 26.89,
+        "max_dd": 25.88
+      }
+    }
+  },
+  "9 Tháng gần nhất": {
+    "PRE_UPDATE (Trend Only)": {
+      "size_50": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "wr": 50.0,
+        "pnl": 0.93,
+        "pf": 1.14,
+        "balance": 500.46,
+        "net_profit": 0.46,
+        "roi": 0.09,
+        "max_dd": 0.66
+      },
+      "size_100": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "wr": 50.0,
+        "pnl": 0.93,
+        "pf": 1.14,
+        "balance": 500.93,
+        "net_profit": 0.93,
+        "roi": 0.19,
+        "max_dd": 1.32
+      }
+    },
+    "POST_UPDATE (DUAL Regime)": {
+      "size_50": {
+        "trades": 224,
+        "wins": 144,
+        "losses": 80,
+        "wr": 64.3,
+        "pnl": 44.6,
+        "pf": 1.11,
+        "balance": 522.3,
+        "net_profit": 22.3,
+        "roi": 4.46,
+        "max_dd": 15.34
+      },
+      "size_100": {
+        "trades": 224,
+        "wins": 144,
+        "losses": 80,
+        "wr": 64.3,
+        "pnl": 44.6,
+        "pf": 1.11,
+        "balance": 544.6,
+        "net_profit": 44.6,
+        "roi": 8.92,
+        "max_dd": 30.45
+      }
+    }
+  },
+  "3 Tháng gần nhất": {
+    "PRE_UPDATE (Trend Only)": {
+      "size_50": {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "wr": 50.0,
+        "pnl": 2.37,
+        "pf": 1.51,
+        "balance": 501.19,
+        "net_profit": 1.19,
+        "roi": 0.24,
+        "max_dd": 0.47
+      },
+      "size_100": {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "wr": 50.0,
+        "pnl": 2.37,
+        "pf": 1.51,
+        "balance": 502.37,
+        "net_profit": 2.37,
+        "roi": 0.47,
+        "max_dd": 0.93
+      }
+    },
+    "POST_UPDATE (DUAL Regime)": {
+      "size_50": {
+        "trades": 64,
+        "wins": 48,
+        "losses": 16,
+        "wr": 75.0,
+        "pnl": 77.58,
+        "pf": 3.24,
+        "balance": 538.79,
+        "net_profit": 38.79,
+        "roi": 7.76,
+        "max_dd": 2.28
+      },
+      "size_100": {
+        "trades": 64,
+        "wins": 48,
+        "losses": 16,
+        "wr": 75.0,
+        "pnl": 77.58,
+        "pf": 3.24,
+        "balance": 577.58,
+        "net_profit": 77.58,
+        "roi": 15.52,
+        "max_dd": 4.55
+      }
+    }
+  }
+}

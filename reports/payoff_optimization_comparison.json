@@ -1,0 +1,130 @@
+{
+  "24 Tháng (Toàn bộ)": {
+    "TRUOC_TOI_UU (Baseline)": {
+      "trades": 639,
+      "wins": 393,
+      "losses": 246,
+      "win_rate": 61.5,
+      "profit_factor": 1.32,
+      "avg_win_pct": 3.48,
+      "avg_loss_pct": 4.24,
+      "payoff_ratio": 0.82,
+      "total_pnl_pct": 329.65,
+      "final_balance": 953.37,
+      "net_profit_usd": 453.37,
+      "roi_pct": 90.67,
+      "max_drawdown_pct": 37.28
+    },
+    "SAU_TOI_UU (Payoff Upgraded)": {
+      "trades": 639,
+      "wins": 382,
+      "losses": 257,
+      "win_rate": 59.78,
+      "profit_factor": 1.35,
+      "avg_win_pct": 3.77,
+      "avg_loss_pct": 4.18,
+      "payoff_ratio": 0.9,
+      "total_pnl_pct": 370.25,
+      "final_balance": 1162.26,
+      "net_profit_usd": 662.26,
+      "roi_pct": 132.45,
+      "max_drawdown_pct": 40.88
+    }
+  },
+  "12 Tháng (1 năm)": {
+    "TRUOC_TOI_UU (Baseline)": {
+      "trades": 336,
+      "wins": 208,
+      "losses": 128,
+      "win_rate": 61.9,
+      "profit_factor": 1.17,
+      "avg_win_pct": 3.37,
+      "avg_loss_pct": 4.7,
+      "payoff_ratio": 0.72,
+      "total_pnl_pct": 104.11,
+      "final_balance": 581.87,
+      "net_profit_usd": 81.87,
+      "roi_pct": 16.37,
+      "max_drawdown_pct": 37.28
+    },
+    "SAU_TOI_UU (Payoff Upgraded)": {
+      "trades": 336,
+      "wins": 203,
+      "losses": 133,
+      "win_rate": 60.42,
+      "profit_factor": 1.16,
+      "avg_win_pct": 3.51,
+      "avg_loss_pct": 4.67,
+      "payoff_ratio": 0.75,
+      "total_pnl_pct": 95.52,
+      "final_balance": 604.74,
+      "net_profit_usd": 104.74,
+      "roi_pct": 20.95,
+      "max_drawdown_pct": 40.88
+    }
+  },
+  "9 Tháng gần nhất": {
+    "TRUOC_TOI_UU (Baseline)": {
+      "trades": 224,
+      "wins": 140,
+      "losses": 84,
+      "win_rate": 62.5,
+      "profit_factor": 1.0,
+      "avg_win_pct": 3.1,
+      "avg_loss_pct": 5.24,
+      "payoff_ratio": 0.59,
+      "total_pnl_pct": -1.23,
+      "final_balance": 463.33,
+      "net_profit_usd": -36.67,
+      "roi_pct": -7.33,
+      "max_drawdown_pct": 37.28
+    },
+    "SAU_TOI_UU (Payoff Upgraded)": {
+      "trades": 224,
+      "wins": 138,
+      "losses": 86,
+      "win_rate": 61.61,
+      "profit_factor": 0.98,
+      "avg_win_pct": 3.17,
+      "avg_loss_pct": 5.27,
+      "payoff_ratio": 0.6,
+      "total_pnl_pct": -10.24,
+      "final_balance": 469.68,
+      "net_profit_usd": -30.32,
+      "roi_pct": -6.06,
+      "max_drawdown_pct": 40.88
+    }
+  },
+  "3 Tháng gần nhất": {
+    "TRUOC_TOI_UU (Baseline)": {
+      "trades": 64,
+      "wins": 47,
+      "losses": 17,
+      "win_rate": 73.44,
+      "profit_factor": 2.96,
+      "avg_win_pct": 2.23,
+      "avg_loss_pct": 2.08,
+      "payoff_ratio": 1.07,
+      "total_pnl_pct": 69.61,
+      "final_balance": 594.17,
+      "net_profit_usd": 94.17,
+      "roi_pct": 18.83,
+      "max_drawdown_pct": 5.57
+    },
+    "SAU_TOI_UU (Payoff Upgraded)": {
+      "trades": 64,
+      "wins": 47,
+      "losses": 17,
+      "win_rate": 73.44,
+      "profit_factor": 3.1,
+      "avg_win_pct": 2.34,
+      "avg_loss_pct": 2.08,
+      "payoff_ratio": 1.12,
+      "total_pnl_pct": 74.41,
+      "final_balance": 601.23,
+      "net_profit_usd": 101.23,
+      "roi_pct": 20.25,
+      "max_drawdown_pct": 5.57
+    }
+  }
+}

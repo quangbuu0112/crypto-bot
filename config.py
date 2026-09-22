@@ -38,11 +38,11 @@ USE_PARTIAL_TP = True             # Bật cơ chế chốt lời 2 giai đoạn 
 USE_ATR_STOPS = True              # Sử dụng SL/TP động theo biến động thị trường ATR
 ATR_LENGTH = 14                   # Chu kỳ tính ATR
 
-ATR_SL_MULTIPLIER = 1.4           # Cắt lỗ mặc định
-ATR_TP1_MULTIPLIER = 1.2          # TP1 mặc định (Chốt 30%)
-ATR_TP2_MULTIPLIER = 3.5          # TP2 mặc định (Gồng 70%)
-TP1_SHARE = 0.3                   # Tỷ trọng chốt ở TP1: 30%
-TP2_SHARE = 0.7                   # Tỷ trọng chốt ở TP2: 70%
+ATR_SL_MULTIPLIER = 1.4           # Cắt lỗ Trend mặc định (1.4x ATR)
+ATR_TP1_MULTIPLIER = 1.5          # TP1 Trend mặc định (1.5x ATR - Chốt 35%)
+ATR_TP2_MULTIPLIER = 5.5          # TP2 Trend Runner mặc định (5.5x ATR - Gồng 65%)
+TP1_SHARE = 0.35                  # Tỷ trọng chốt ở TP1: 35%
+TP2_SHARE = 0.65                  # Tỷ trọng chốt ở TP2: 65%
 
 # Cấu hình bộ lọc kỹ thuật vùng mua Sniper mặc định
 RSI_MIN = 42
@@ -53,9 +53,18 @@ VOL_RATIO_MIN = 1.0
 # Cấu hình Cơ chế Kép Thích Ứng (Dual-Regime Engine: Trend + Sideway)
 ENABLE_DUAL_REGIME = True         # Bật tự động chuyển chế độ và bắt đáy Sideway khi thị trường tích lũy
 SIDEWAY_RSI_MAX = 38              # Ngưỡng RSI quá bán bắt đáy biên dưới Sideway (<= 38)
-SIDEWAY_SL_ATR_MULT = 1.2         # Cắt lỗ chặt 1.2x ATR khi đánh Sideway
-SIDEWAY_TP_MIN_PCT = 0.022        # Chốt lời mục tiêu tối thiểu +2.2% hoặc tại SMA20 / Upper BB
+SIDEWAY_SL_ATR_MULT = 1.2         # Cắt lỗ chặt 1.2x ATR khi đánh Sideway (cắt lỗ sớm)
+SIDEWAY_TP_ATR_MULT = 1.3         # Chốt lời mục tiêu 1.3x ATR hoặc tại SMA20 trục giữa
+SIDEWAY_TP_MIN_PCT = 0.022        # Chốt lời tối thiểu +2.2%
 SIDEWAY_MAX_HOLD_BARS = 16        # Giới hạn giữ lệnh tối đa 16 nến 1H (~16 giờ)
+
+# ==============================================================================
+# 🛡️ CẤU HÌNH BỘ 3 LỚP GIÁP BẢO VỆ PHÒNG THỦ (DEFENSIVE SHIELDS)
+# ==============================================================================
+ENABLE_BTC_MACRO_FILTER = True         # Giáp 1: BTC 1D < EMA50 & RSI < 45 -> Cấm bắt đáy Altcoin
+ENABLE_PANIC_VOLUME_FILTER = True      # Giáp 2: Nến đỏ xả > 2.2x Volume -> Chặn bắt dao rơi
+ENABLE_CONSECUTIVE_LOSS_COOLDOWN = True # Giáp 3: 2 lệnh SL liên tiếp trong 72h -> Tạm khóa coin 3 ngày
+COOLDOWN_HOURS = 72                    # Thời gian tạm khóa coin (72 giờ / 3 ngày)
 
 # ==============================================================================
 # 🎯 CẤU HÌNH TỐI ƯU HÓA ĐẶC THÙ RIÊNG CHO TỪNG ĐỒNG COIN (COIN-SPECIFIC TUNING)

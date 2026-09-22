@@ -22,18 +22,53 @@ def save_trades(trades):
     with open(TRADES_FILE, 'w', encoding='utf-8') as f:
         json.dump(trades, f, ensure_ascii=False, indent=2)
 
-def get_current_paper_balance(initial_balance: float = 500.0) -> float:
-    """Tính toán số dư tài khoản Paper Trading hiện tại từ lịch sử giao dịch"""
+def get_current_paper_balance() -> float:
+    """
+    Tính số dư khả dụng thực tế của tài khoản Paper Trading:
+    = Vốn gốc ban đầu ($500.0) + Tổng Realized PnL ($) của tất cả các lệnh đã chốt.
+    """
     trades = load_trades()
-    balance = initial_balance
-    for t in trades:
-        if t.get("status") != "OPEN":
-            if "pnl_usd" in t:
-                balance += float(t.get("pnl_usd", 0.0))
-            elif "pnl_pct" in t:
-                pos_sz = float(t.get("position_size_usdt", getattr(config, "ORDER_AMOUNT_USDT", 50.0)))
-                balance += pos_sz * (float(t.get("pnl_pct", 0.0)) / 100.0)
-    return max(round(balance, 2), 50.0)
+    initial_cap = float(getattr(config, 'INITIAL_PAPER_BALANCE', 500.0))
+    realized_pnl_usd = sum(float(t.get('pnl_usd', 0.0)) for t in trades if t.get('status', '').startswith('CLOSED'))
+    return round(initial_cap + realized_pnl_usd, 2)
+
+def is_symbol_in_cooldown(symbol: str) -> dict:
+    """
+    🛡️ GIÁP 3: MẠCH NGẮT CHUỖI THUA (CONSECUTIVE LOSS COOLDOWN)
+    Nếu 1 coin dính 2 lệnh SL liên tiếp trong vòng 72 giờ -> Tạm khóa 72h để bảo toàn vốn.
+    """
+    if not getattr(config, 'ENABLE_CONSECUTIVE_LOSS_COOLDOWN', True):
+        return {"in_cooldown": False}
+
+    trades = load_trades()
+    closed_sym_trades = [
+        t for t in trades 
+        if t.get('symbol') == symbol and t.get('status') in ['CLOSED_SL', 'CLOSED_TP', 'CLOSED_TP2', 'CLOSED_BE', 'CLOSED_TIMEOUT']
+    ]
+    if len(closed_sym_trades) < 2:
+        return {"in_cooldown": False}
+
+    last_two = closed_sym_trades[-2:]
+    if all(t.get('status') == 'CLOSED_SL' for t in last_two):
+        try:
+            last_closed_at = last_two[-1].get('closed_at')
+            if last_closed_at:
+                clean_time_str = last_closed_at.replace(' UTC', '').strip()
+                last_dt = datetime.strptime(clean_time_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                hours_passed = (now_dt - last_dt).total_seconds() / 3600.0
+                cooldown_limit = getattr(config, 'COOLDOWN_HOURS', 72)
+                if hours_passed < cooldown_limit:
+                    remaining_h = round(cooldown_limit - hours_passed, 1)
+                    return {
+                        "in_cooldown": True,
+                        "remaining_hours": remaining_h,
+                        "detail": f"🛡️ [GIÁP 3: COOLDOWN] {symbol} dính 2 SL liên tiếp. Tạm khóa còn {remaining_h}h."
+                    }
+        except Exception as e:
+            pass
+
+    return {"in_cooldown": False}
 
 def open_paper_trade(symbol: str, entry_price: float, sl_pct: float = None, tp_pct: float = None,
                      ai_score: int = 0, stop_loss: float = None, take_profit: float = None,
@@ -161,16 +196,16 @@ def check_and_update_paper_trades():
                     events.append((t, f"🔴 [SIDEWAY] CẮT LỖ THỦNG BIÊN (-{abs(t['pnl_pct']):.1f}% | -${abs(t['pnl_usd']):,.2f})"))
 
             # =========================================================
-            # XỬ LÝ VỊ THẾ SNIPER TREND (2 GIAI ĐOẠN TP1 + TP2)
+            # XỬ LÝ VỊ THẾ SNIPER TREND (2 GIAI ĐOẠN TP1 35% + TP2 RUNNER 65%)
             # =========================================================
             else:
                 tp1_target = t.get('take_profit_1', t.get('take_profit', entry_price * 1.02))
-                tp2_target = t.get('take_profit_2', t.get('take_profit', entry_price * 1.04))
-                tp1_share = t.get('tp1_share', getattr(config, 'TP1_SHARE', 0.3))
-                tp2_share = t.get('tp2_share', getattr(config, 'TP2_SHARE', 0.7))
+                tp2_target = t.get('take_profit_2', t.get('take_profit', entry_price * 1.06))
+                tp1_share = t.get('tp1_share', getattr(config, 'TP1_SHARE', 0.35))
+                tp2_share = t.get('tp2_share', getattr(config, 'TP2_SHARE', 0.65))
 
                 if not t.get('tp1_hit', False):
-                    # Chạm TP1 -> Chốt 30% & Kéo SL về Entry hòa vốn
+                    # Chạm TP1 -> Chốt 35% & Kéo SL về Entry hòa vốn
                     if current_price >= tp1_target:
                         t['tp1_hit'] = True
                         t['tp1_hit_at'] = now_str
@@ -180,7 +215,7 @@ def check_and_update_paper_trades():
 
                         events.append((
                             t,
-                            f"🎯 [SNIPER] CHỐT LỜI 30% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}% | +${tp1_gain_usd:,.2f})\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ VÀO LỆNH (${entry_price:,.2f}) - RỦI RO = 0%!"
+                            f"🎯 [SNIPER] CHỐT LỜI 35% VỊ THẾ (TP1: +{t.get('tp1_pct', 0):.1f}% | +${tp1_gain_usd:,.2f})\n🛡️ ĐÃ TỰ ĐỘNG DỜI STOP LOSS VỀ GIÁ ENTRY (${entry_price:,.2f}) - RỦI RO = 0%!"
                         ))
 
                     # Chưa chạm TP1 mà chạm Stop Loss ban đầu
@@ -194,7 +229,7 @@ def check_and_update_paper_trades():
                         events.append((t, f"🔴 [SNIPER] CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}% | -${abs(t['pnl_usd']):,.2f})"))
 
                 else:
-                    # Đã chốt 30% TP1, tiếp tục chạm TP2
+                    # Đã chốt 35% TP1, tiếp tục chạm TP2 Runner
                     if current_price >= tp2_target:
                         t['status'] = 'CLOSED_TP2'
                         t['close_price'] = current_price
@@ -203,9 +238,9 @@ def check_and_update_paper_trades():
                         t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
                         t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"🏆 [SNIPER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
+                        events.append((t, f"🏆 [SNIPER RUNNER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
-                    # Đã chốt 30% TP1, quay đầu về Entry hòa vốn
+                    # Đã chốt 35% TP1, quay đầu về Entry hòa vốn
                     elif current_price <= t['stop_loss']:
                         t['status'] = 'CLOSED_BE'
                         t['close_price'] = current_price
@@ -213,7 +248,7 @@ def check_and_update_paper_trades():
                         t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
                         t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 30% TP1: +{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
+                        events.append((t, f"🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 35% TP1: +{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
         except Exception as e:
             print(f"❌ Lỗi lấy giá {symbol}: {e}")

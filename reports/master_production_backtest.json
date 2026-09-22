@@ -1,0 +1,58 @@
+{
+  "24 Tháng (Toàn bộ chu kỳ)": {
+    "trades": 263,
+    "wins": 154,
+    "losses": 109,
+    "win_rate": 58.56,
+    "profit_factor": 1.57,
+    "avg_win": 3.13,
+    "avg_loss": 2.82,
+    "payoff_ratio": 1.11,
+    "final_balance": 761.35,
+    "net_profit": 261.35,
+    "roi": 52.27,
+    "max_dd": 8.3
+  },
+  "12 Tháng (1 năm)": {
+    "trades": 115,
+    "wins": 68,
+    "losses": 47,
+    "win_rate": 59.13,
+    "profit_factor": 1.24,
+    "avg_win": 2.45,
+    "avg_loss": 2.86,
+    "payoff_ratio": 0.86,
+    "final_balance": 539.35,
+    "net_profit": 39.35,
+    "roi": 7.87,
+    "max_dd": 8.3
+  },
+  "9 Tháng gần nhất": {
+    "trades": 77,
+    "wins": 48,
+    "losses": 29,
+    "win_rate": 62.34,
+    "profit_factor": 1.27,
+    "avg_win": 2.34,
+    "avg_loss": 3.04,
+    "payoff_ratio": 0.77,
+    "final_balance": 529.58,
+    "net_profit": 29.58,
+    "roi": 5.92,
+    "max_dd": 8.3
+  },
+  "3 Tháng gần nhất": {
+    "trades": 33,
+    "wins": 27,
+    "losses": 6,
+    "win_rate": 81.82,
+    "profit_factor": 7.14,
+    "avg_win": 2.17,
+    "avg_loss": 1.37,
+    "payoff_ratio": 1.58,
+    "final_balance": 566.93,
+    "net_profit": 66.93,
+    "roi": 13.39,
+    "max_dd": 0.99
+  }
+}

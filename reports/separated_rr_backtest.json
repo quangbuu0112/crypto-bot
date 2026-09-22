@@ -1,0 +1,298 @@
+{
+  "24 Tháng (Toàn bộ)": {
+    "BASELINE": {
+      "overall": {
+        "trades": 639,
+        "wins": 397,
+        "losses": 242,
+        "wr": 62.1,
+        "pf": 1.35,
+        "avg_win": 3.43,
+        "avg_loss": 4.19,
+        "payoff": 0.82
+      },
+      "trend": {
+        "trades": 139,
+        "wins": 78,
+        "losses": 61,
+        "wr": 56.1,
+        "pf": 1.39,
+        "avg_win": 2.94,
+        "avg_loss": 2.71,
+        "payoff": 1.08
+      },
+      "sideway": {
+        "trades": 500,
+        "wins": 319,
+        "losses": 181,
+        "wr": 63.8,
+        "pf": 1.34,
+        "avg_win": 3.55,
+        "avg_loss": 4.69,
+        "payoff": 0.76
+      },
+      "final_balance": 1008.49,
+      "net_profit": 508.49,
+      "roi": 101.7,
+      "max_dd": 31.66
+    },
+    "DUAL_SEPARATED_RR": {
+      "overall": {
+        "trades": 639,
+        "wins": 375,
+        "losses": 264,
+        "wr": 58.7,
+        "pf": 1.3,
+        "avg_win": 3.53,
+        "avg_loss": 3.85,
+        "payoff": 0.92
+      },
+      "trend": {
+        "trades": 139,
+        "wins": 71,
+        "losses": 68,
+        "wr": 51.1,
+        "pf": 1.63,
+        "avg_win": 3.78,
+        "avg_loss": 2.42,
+        "payoff": 1.56
+      },
+      "sideway": {
+        "trades": 500,
+        "wins": 304,
+        "losses": 196,
+        "wr": 60.8,
+        "pf": 1.24,
+        "avg_win": 3.47,
+        "avg_loss": 4.35,
+        "payoff": 0.8
+      },
+      "final_balance": 1015.93,
+      "net_profit": 515.93,
+      "roi": 103.19,
+      "max_dd": 37.1
+    }
+  },
+  "12 Tháng (1 năm)": {
+    "BASELINE": {
+      "overall": {
+        "trades": 336,
+        "wins": 212,
+        "losses": 124,
+        "wr": 63.1,
+        "pf": 1.25,
+        "avg_win": 3.34,
+        "avg_loss": 4.6,
+        "payoff": 0.73
+      },
+      "trend": {
+        "trades": 31,
+        "wins": 14,
+        "losses": 17,
+        "wr": 45.2,
+        "pf": 0.81,
+        "avg_win": 3.12,
+        "avg_loss": 3.15,
+        "payoff": 0.99
+      },
+      "sideway": {
+        "trades": 305,
+        "wins": 198,
+        "losses": 107,
+        "wr": 64.9,
+        "pf": 1.3,
+        "avg_win": 3.35,
+        "avg_loss": 4.83,
+        "payoff": 0.69
+      },
+      "final_balance": 641.19,
+      "net_profit": 141.19,
+      "roi": 28.24,
+      "max_dd": 31.66
+    },
+    "DUAL_SEPARATED_RR": {
+      "overall": {
+        "trades": 336,
+        "wins": 200,
+        "losses": 136,
+        "wr": 59.5,
+        "pf": 1.14,
+        "avg_win": 3.28,
+        "avg_loss": 4.25,
+        "payoff": 0.77
+      },
+      "trend": {
+        "trades": 31,
+        "wins": 12,
+        "losses": 19,
+        "wr": 38.7,
+        "pf": 0.96,
+        "avg_win": 4.1,
+        "avg_loss": 2.7,
+        "payoff": 1.52
+      },
+      "sideway": {
+        "trades": 305,
+        "wins": 188,
+        "losses": 117,
+        "wr": 61.6,
+        "pf": 1.15,
+        "avg_win": 3.23,
+        "avg_loss": 4.5,
+        "payoff": 0.72
+      },
+      "final_balance": 591.73,
+      "net_profit": 91.73,
+      "roi": 18.35,
+      "max_dd": 37.1
+    }
+  },
+  "9 Tháng gần nhất": {
+    "BASELINE": {
+      "overall": {
+        "trades": 224,
+        "wins": 144,
+        "losses": 80,
+        "wr": 64.3,
+        "pf": 1.1,
+        "avg_win": 3.08,
+        "avg_loss": 5.1,
+        "payoff": 0.6
+      },
+      "trend": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "wr": 50.0,
+        "pf": 1.01,
+        "avg_win": 2.22,
+        "avg_loss": 2.21,
+        "payoff": 1.0
+      },
+      "sideway": {
+        "trades": 218,
+        "wins": 141,
+        "losses": 77,
+        "wr": 64.7,
+        "pf": 1.1,
+        "avg_win": 3.1,
+        "avg_loss": 5.22,
+        "payoff": 0.59
+      },
+      "final_balance": 514.82,
+      "net_profit": 14.82,
+      "roi": 2.96,
+      "max_dd": 31.66
+    },
+    "DUAL_SEPARATED_RR": {
+      "overall": {
+        "trades": 224,
+        "wins": 137,
+        "losses": 87,
+        "wr": 61.2,
+        "pf": 0.96,
+        "avg_win": 3.02,
+        "avg_loss": 4.94,
+        "payoff": 0.61
+      },
+      "trend": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "wr": 50.0,
+        "pf": 1.67,
+        "avg_win": 3.23,
+        "avg_loss": 1.93,
+        "payoff": 1.67
+      },
+      "sideway": {
+        "trades": 218,
+        "wins": 134,
+        "losses": 84,
+        "wr": 61.5,
+        "pf": 0.96,
+        "avg_win": 3.02,
+        "avg_loss": 5.05,
+        "payoff": 0.6
+      },
+      "final_balance": 470.88,
+      "net_profit": -29.12,
+      "roi": -5.82,
+      "max_dd": 37.1
+    }
+  },
+  "3 Tháng gần nhất": {
+    "BASELINE": {
+      "overall": {
+        "trades": 64,
+        "wins": 48,
+        "losses": 16,
+        "wr": 75.0,
+        "pf": 3.2,
+        "avg_win": 2.31,
+        "avg_loss": 2.17,
+        "payoff": 1.06
+      },
+      "trend": {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "wr": 50.0,
+        "pf": 1.34,
+        "avg_win": 3.13,
+        "avg_loss": 2.33,
+        "payoff": 1.34
+      },
+      "sideway": {
+        "trades": 60,
+        "wins": 46,
+        "losses": 14,
+        "wr": 76.7,
+        "pf": 3.49,
+        "avg_win": 2.28,
+        "avg_loss": 2.14,
+        "payoff": 1.07
+      },
+      "final_balance": 604.2,
+      "net_profit": 104.2,
+      "roi": 20.84,
+      "max_dd": 5.57
+    },
+    "DUAL_SEPARATED_RR": {
+      "overall": {
+        "trades": 64,
+        "wins": 49,
+        "losses": 15,
+        "wr": 76.6,
+        "pf": 2.86,
+        "avg_win": 2.24,
+        "avg_loss": 2.55,
+        "payoff": 0.88
+      },
+      "trend": {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "wr": 50.0,
+        "pf": 2.22,
+        "avg_win": 4.54,
+        "avg_loss": 2.04,
+        "payoff": 2.23
+      },
+      "sideway": {
+        "trades": 60,
+        "wins": 47,
+        "losses": 13,
+        "wr": 78.3,
+        "pf": 2.94,
+        "avg_win": 2.14,
+        "avg_loss": 2.63,
+        "payoff": 0.81
+      },
+      "final_balance": 596.61,
+      "net_profit": 96.61,
+      "roi": 19.32,
+      "max_dd": 7.11
+    }
+  }
+}

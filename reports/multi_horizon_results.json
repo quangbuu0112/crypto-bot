@@ -1,0 +1,258 @@
+{
+  "24 tháng (Toàn bộ 2 năm)": {
+    "start_date": "2024-09-18",
+    "end_date": "2026-09-18",
+    "total_trades": 215,
+    "wins": 127,
+    "losses": 88,
+    "win_rate": 59.1,
+    "profit_factor": 1.63,
+    "total_pnl": 151.13,
+    "sim_50": {
+      "final_balance": 575.57,
+      "net_profit": 75.57,
+      "roi_pct": 15.11,
+      "max_drawdown_pct": 4.33
+    },
+    "sim_100": {
+      "final_balance": 651.13,
+      "net_profit": 151.13,
+      "roi_pct": 30.23,
+      "max_drawdown_pct": 8.51
+    },
+    "coins": {
+      "BTC/USDT": {
+        "trades": 37,
+        "wins": 20,
+        "losses": 17,
+        "win_rate": 54.1,
+        "profit_factor": 1.85,
+        "pnl": 17.95
+      },
+      "ETH/USDT": {
+        "trades": 28,
+        "wins": 15,
+        "losses": 13,
+        "win_rate": 53.6,
+        "profit_factor": 1.95,
+        "pnl": 38.39
+      },
+      "SOL/USDT": {
+        "trades": 25,
+        "wins": 19,
+        "losses": 6,
+        "win_rate": 76.0,
+        "profit_factor": 2.26,
+        "pnl": 28.93
+      },
+      "BNB/USDT": {
+        "trades": 61,
+        "wins": 33,
+        "losses": 28,
+        "win_rate": 54.1,
+        "profit_factor": 1.18,
+        "pnl": 14.14
+      },
+      "XRP/USDT": {
+        "trades": 64,
+        "wins": 40,
+        "losses": 24,
+        "win_rate": 62.5,
+        "profit_factor": 1.69,
+        "pnl": 51.72
+      }
+    }
+  },
+  "12 tháng (1 năm gần nhất)": {
+    "start_date": "2025-09-18",
+    "end_date": "2026-09-18",
+    "total_trades": 45,
+    "wins": 23,
+    "losses": 22,
+    "win_rate": 51.1,
+    "profit_factor": 0.99,
+    "total_pnl": -0.56,
+    "sim_50": {
+      "final_balance": 499.72,
+      "net_profit": -0.28,
+      "roi_pct": -0.06,
+      "max_drawdown_pct": 4.62
+    },
+    "sim_100": {
+      "final_balance": 499.43,
+      "net_profit": -0.57,
+      "roi_pct": -0.11,
+      "max_drawdown_pct": 8.89
+    },
+    "coins": {
+      "BTC/USDT": {
+        "trades": 5,
+        "wins": 4,
+        "losses": 1,
+        "win_rate": 80.0,
+        "profit_factor": 8.64,
+        "pnl": 10.35
+      },
+      "ETH/USDT": {
+        "trades": 7,
+        "wins": 6,
+        "losses": 1,
+        "win_rate": 85.7,
+        "profit_factor": 9.36,
+        "pnl": 21.74
+      },
+      "SOL/USDT": {
+        "trades": 6,
+        "wins": 3,
+        "losses": 3,
+        "win_rate": 50.0,
+        "profit_factor": 1.1,
+        "pnl": 0.94
+      },
+      "BNB/USDT": {
+        "trades": 23,
+        "wins": 10,
+        "losses": 13,
+        "win_rate": 43.5,
+        "profit_factor": 0.53,
+        "pnl": -23.54
+      },
+      "XRP/USDT": {
+        "trades": 4,
+        "wins": 0,
+        "losses": 4,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "pnl": -10.06
+      }
+    }
+  },
+  "9 tháng gần nhất": {
+    "start_date": "2025-12-22",
+    "end_date": "2026-09-18",
+    "total_trades": 7,
+    "wins": 3,
+    "losses": 4,
+    "win_rate": 42.9,
+    "profit_factor": 0.86,
+    "total_pnl": -1.27,
+    "sim_50": {
+      "final_balance": 499.37,
+      "net_profit": -0.63,
+      "roi_pct": -0.13,
+      "max_drawdown_pct": 0.88
+    },
+    "sim_100": {
+      "final_balance": 498.73,
+      "net_profit": -1.27,
+      "roi_pct": -0.25,
+      "max_drawdown_pct": 1.76
+    },
+    "coins": {
+      "BTC/USDT": {
+        "trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "win_rate": 100.0,
+        "profit_factor": 99.9,
+        "pnl": 7.04
+      },
+      "ETH/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      },
+      "SOL/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      },
+      "BNB/USDT": {
+        "trades": 5,
+        "wins": 1,
+        "losses": 4,
+        "win_rate": 20.0,
+        "profit_factor": 0.06,
+        "pnl": -8.31
+      },
+      "XRP/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      }
+    }
+  },
+  "3 tháng gần nhất": {
+    "start_date": "2026-06-20",
+    "end_date": "2026-09-18",
+    "total_trades": 5,
+    "wins": 2,
+    "losses": 3,
+    "win_rate": 40.0,
+    "profit_factor": 1.02,
+    "total_pnl": 0.17,
+    "sim_50": {
+      "final_balance": 500.08,
+      "net_profit": 0.08,
+      "roi_pct": 0.02,
+      "max_drawdown_pct": 0.69
+    },
+    "sim_100": {
+      "final_balance": 500.17,
+      "net_profit": 0.17,
+      "roi_pct": 0.03,
+      "max_drawdown_pct": 1.37
+    },
+    "coins": {
+      "BTC/USDT": {
+        "trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "win_rate": 100.0,
+        "profit_factor": 99.9,
+        "pnl": 7.04
+      },
+      "ETH/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      },
+      "SOL/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      },
+      "BNB/USDT": {
+        "trades": 3,
+        "wins": 0,
+        "losses": 3,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "pnl": -6.87
+      },
+      "XRP/USDT": {
+        "trades": 0,
+        "wins": 0,
+        "losses": 0,
+        "win_rate": 0.0,
+        "profit_factor": 99.9,
+        "pnl": 0.0
+      }
+    }
+  }
+}
