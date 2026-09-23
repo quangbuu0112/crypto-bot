@@ -76,51 +76,51 @@ def get_help_message() -> str:
     )
 
 def handle_balance_command(chat_id: str):
-    reply_telegram(chat_id, "⏳ *Đang truy vấn số dư các sàn giao dịch...*")
-    balances = multi_exchange_trader.check_all_testnet_balances()
+    from paper_trader import get_current_paper_balance, load_trades
 
-    # Lấy danh sách các coin mà bot đang theo dõi giao dịch
-    target_coins = set(['USDT', 'USDC'])
-    for s in getattr(config, 'SYMBOLS', []):
-        base = s.split('/')[0].upper()
-        target_coins.add(base)
+    current_paper_bal = get_current_paper_balance()
+    initial_cap = float(getattr(config, 'INITIAL_PAPER_BALANCE', 500.0))
+    net_profit = current_paper_bal - initial_cap
+    roi_pct = (net_profit / initial_cap) * 100.0 if initial_cap > 0 else 0.0
 
-    mode_str = "📄 *CHẾ ĐỘ:* `Live Paper Trading` (Giả lập với giá thật)" if not getattr(config, 'USE_TESTNET', False) else "🧪 *CHẾ ĐỘ:* `Testnet Multi-Exchange`"
+    trades = load_trades()
+    open_trades = [t for t in trades if t.get("status") == "OPEN"]
+    closed_trades = [t for t in trades if t.get("status", "").startswith("CLOSED")]
 
-    msg = f"💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN* 💰\n{mode_str}\n\n"
+    msg = (
+        "💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN* 💰\n"
+        "📄 *Chế độ:* `Live Paper Trading (Giả lập với giá thật)`\n\n"
+        "💵 *TỔNG KẾT VÍ PAPER TRADING:*\n"
+        f"• *Vốn khởi điểm:* `${initial_cap:,.2f} USDT`\n"
+        f"• *Số dư khả dụng hiện tại:* `💵 ${current_paper_bal:,.2f} USDT`\n"
+        f"• *Tổng Realized PnL:* `{net_profit:+,.2f} USD` (`{roi_pct:+.2f}%`)\n"
+        f"• *Số vị thế đang chạy (OPEN):* `{len(open_trades)} lệnh`\n"
+        f"• *Tổng số lệnh đã hoàn tất:* `{len(closed_trades)} lệnh`\n\n"
+    )
 
-    for ex_name, data in balances.items():
-        msg += f"🏦 *Sàn {ex_name.upper()} (Testnet):*\n"
-        if data.get("success"):
-            assets = data.get("assets", {})
-            displayed_assets = {}
+    # Nếu có cấu hình Testnet thì truy vấn thêm số dư sàn Testnet
+    if getattr(config, 'USE_TESTNET', False) or (getattr(config, 'BINANCE_TESTNET_API_KEY', '') and getattr(config, 'BINANCE_TESTNET_SECRET', '')):
+        try:
+            balances = multi_exchange_trader.check_all_testnet_balances()
+            target_coins = set(['USDT', 'USDC'])
+            for s in getattr(config, 'SYMBOLS', []):
+                target_coins.add(s.split('/')[0].upper())
 
-            # Ưu tiên 1: Hiển thị các coin mục tiêu của bot (USDT, BTC, ETH, SOL, BNB, XRP...)
-            for curr in sorted(target_coins):
-                if curr in assets and assets[curr].get('total', 0) > 0.0001:
-                    displayed_assets[curr] = assets[curr]
+            msg += "🏦 *SỐ DƯ SÀN TESTNET (BINANCE / BYBIT):*\n"
+            for ex_name, data in balances.items():
+                msg += f"• *Sàn {ex_name.upper()}:* "
+                if data.get("success"):
+                    assets = data.get("assets", {})
+                    usdt_info = assets.get("USDT", {})
+                    usdt_total = usdt_info.get("total", 0)
+                    msg += f"`{usdt_total:,.2f} USDT`\n"
+                else:
+                    msg += "`Chưa kết nối / Lỗi API`\n"
+            msg += "\n"
+        except Exception:
+            pass
 
-            # Ưu tiên 2: Thêm các coin có số dư lớn khác nếu chưa đủ 8 coin
-            for curr, info in sorted(assets.items(), key=lambda x: x[1].get('total', 0), reverse=True):
-                if len(displayed_assets) >= 8:
-                    break
-                if curr not in displayed_assets and info.get('total', 0) > 0.0001:
-                    displayed_assets[curr] = info
-
-            if displayed_assets:
-                for curr, info in displayed_assets.items():
-                    tot = info.get("total", 0)
-                    free = info.get("free", 0)
-                    msg += f"• `{curr:<6}`: *{tot:,.4f}* (Khả dụng: {free:,.4f})\n"
-                if len(assets) > len(displayed_assets):
-                    msg += f"• _...và {len(assets) - len(displayed_assets)} token testnet khác._\n"
-            else:
-                msg += "• _Ví trống hoặc chưa có số dư USDT/Crypto_\n"
-        else:
-            err_msg = str(data.get('error', 'Lỗi không xác định'))[:150]
-            msg += f"• ❌ Lỗi kết nối: `{err_msg}`\n"
-        msg += "\n"
-
+    msg += "💡 *Mẹo:* Bạn có thể gõ `/orders` để xem chi tiết các lệnh, hoặc `/report` để xem thống kê hiệu suất chi tiết."
     reply_telegram(chat_id, msg)
 
 def handle_orders_command(chat_id: str):
