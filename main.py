@@ -9,9 +9,15 @@ from paper_trader import open_paper_trade, check_and_update_paper_trades, is_sym
 from market_gatekeeper import check_market_health
 from telegram_commander import start_telegram_listener
 
+# Persistent HTTP Session cho thông báo Telegram
+_alert_session = requests.Session()
+_alert_adapter = requests.adapters.HTTPAdapter(pool_connections=2, pool_maxsize=5, max_retries=2)
+_alert_session.mount('https://', _alert_adapter)
+_alert_session.mount('http://', _alert_adapter)
+
 def release_system_memory():
-    """Dọn sạch rác Python và ép Linux OS thu hồi 100% RAM dư thừa về hệ thống"""
-    gc.collect()
+    """Dọn sạch rác Python cả 3 thế hệ và ép Linux OS thu hồi 100% RAM dư thừa về hệ thống"""
+    gc.collect(generation=2)
     try:
         # Lệnh can thiệp trực tiếp vào C runtime của Linux để trả RAM về cho OS
         libc = ctypes.CDLL("libc.so.6")
@@ -30,7 +36,7 @@ def send_telegram_alert(message: str):
         "parse_mode": "Markdown"
     }
     try:
-        requests.post(url, json=payload, timeout=10)
+        _alert_session.post(url, json=payload, timeout=10)
     except Exception as e:
         print(f"❌ Lỗi gửi Telegram: {e}")
 

@@ -4,8 +4,8 @@ from google.genai import types
 from pydantic import BaseModel, Field
 import config
 
-# Khởi tạo Gemini Client
-client = genai.Client(api_key=config.GEMINI_API_KEY)
+# Khởi tạo Gemini Client một lần duy nhất
+_client = genai.Client(api_key=config.GEMINI_API_KEY)
 
 
 # --- ĐỊNH NGHĨA ĐỊNH DẠNG JSON TRẢ VỀ TỪ GEMINI ---
@@ -29,6 +29,7 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
                              atr: float = None, strategy_type: str = "SNIPER_TREND") -> GeminiAuditResult:
     """
     Gửi bối cảnh giao dịch sang Gemini Flash để thẩm định lại rủi ro cho cả 2 chế độ (Trend & Sideway).
+    Tối ưu hóa giải phóng bộ nhớ (Memory-efficient).
     """
     sl_pct_desc = f"-{(entry_price - stop_loss)/entry_price*100:.1f}%" if stop_loss else "N/A"
     tp_pct_desc = f"+{(take_profit - entry_price)/entry_price*100:.1f}%" if take_profit else "N/A"
@@ -78,25 +79,27 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
         getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
     ]
 
-    last_error = None
+    last_error_str = ""
     for model_name in models_to_try:
         try:
-            response = client.models.generate_content(
+            response = _client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=GeminiAuditResult,
-                    temperature=0.2, # Giữ nhiệt độ thấp để đánh giá khách quan
+                    temperature=0.2,
                 ),
             )
-            # Ép kiểu dữ liệu trả về thành Pydantic Object
-            return GeminiAuditResult.model_validate_json(response.text)
+            raw_text = str(response.text)
+            del response  # Giải phóng response payload lập tức
+            return GeminiAuditResult.model_validate_json(raw_text)
         except Exception as e:
-            last_error = e
-            print(f"[CANH BAO] [Auditor] Model {model_name} gap su co cho {symbol}: {e}. Dang chuyen sang model tiep theo...")
+            # Ngắt tham chiếu traceback để tránh giữ frame bộ nhớ trong closure
+            last_error_str = str(e)
+            e = None
+            print(f"⚠️ [Auditor] Model {model_name} gặp sự cố cho {symbol}: {last_error_str}. Đang chuyển model...")
             time.sleep(1)
 
-    print(f"[LOI] Khong the goi bat ky Gemini model nao de tham dinh {symbol}: {last_error}")
+    print(f"❌ [Auditor] Không thể gọi bất kỳ Gemini model nào để thẩm định {symbol}: {last_error_str}")
     return None
-    

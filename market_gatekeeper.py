@@ -8,9 +8,15 @@ from google.genai import types
 from pydantic import BaseModel, Field
 import config
 
-# Khởi tạo Gemini Client & Binance Exchange
-client = genai.Client(api_key=config.GEMINI_API_KEY)
-exchange = ccxt.binance({'enableRateLimit': True})
+# Khởi tạo Singleton Client & Exchange
+_client = genai.Client(api_key=config.GEMINI_API_KEY)
+_exchange = ccxt.binance({'enableRateLimit': True})
+
+# Persistent HTTP Session
+_session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=2, pool_maxsize=5, max_retries=2)
+_session.mount('https://', adapter)
+_session.mount('http://', adapter)
 
 # Cache kết quả kiểm tra thị trường để tránh gọi API liên tục
 _cached_market_health = None
@@ -40,7 +46,7 @@ def fetch_fear_and_greed() -> dict:
     """Lấy chỉ số Crypto Fear & Greed Index từ Alternative.me"""
     try:
         url = "https://api.alternative.me/fng/?limit=1"
-        res = requests.get(url, timeout=5)
+        res = _session.get(url, timeout=5)
         if res.status_code == 200:
             data = res.json().get("data", [])
             if data:
@@ -54,45 +60,57 @@ def fetch_fear_and_greed() -> dict:
 
 
 def fetch_btc_overview() -> dict:
-    """Lấy dữ liệu nến 4H và 1H của BTC/USDT để phân tích bối cảnh"""
+    """Lấy dữ liệu nến 4H và 1H của BTC/USDT để phân tích bối cảnh (Tối ưu RAM)"""
+    df_4h = None
+    df_1h = None
     try:
-        ohlcv_4h = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=250)
+        ohlcv_4h = _exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=250)
         df_4h = pd.DataFrame(ohlcv_4h, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df_4h['EMA_50'] = ta.ema(df_4h['close'], length=50)
-        df_4h['EMA_200'] = ta.ema(df_4h['close'], length=200)
+        del ohlcv_4h
 
-        ohlcv_1h = exchange.fetch_ohlcv('BTC/USDT', timeframe='1h', limit=10)
+        ema50_s = ta.ema(df_4h['close'], length=50)
+        ema200_s = ta.ema(df_4h['close'], length=200)
+
+        ohlcv_1h = _exchange.fetch_ohlcv('BTC/USDT', timeframe='1h', limit=10)
         df_1h = pd.DataFrame(ohlcv_1h, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df_1h['timestamp'] = pd.to_datetime(df_1h['timestamp'], unit='ms')
+        del ohlcv_1h
 
-        past_4h = df_4h.iloc[-2]
-        latest_1h = df_1h.iloc[-2]
+        close_4h = float(df_4h['close'].iloc[-2])
+        ema50_4h = float(ema50_s.iloc[-2])
+        ema200_4h = float(ema200_s.iloc[-2])
+        latest_close_1h = float(df_1h['close'].iloc[-2])
 
-        is_uptrend = (past_4h['close'] > past_4h['EMA_50']) and (past_4h['EMA_50'] > past_4h['EMA_200'])
-        is_downtrend = (past_4h['close'] < past_4h['EMA_50']) and (past_4h['EMA_50'] < past_4h['EMA_200'])
+        is_uptrend = (close_4h > ema50_4h) and (ema50_4h > ema200_4h)
+        is_downtrend = (close_4h < ema50_4h) and (ema50_4h < ema200_4h)
 
         trend_desc = "UPTREND MẠNH (Giá > EMA50 > EMA200)" if is_uptrend else (
             "DOWNTREND (Giá < EMA50 < EMA200)" if is_downtrend else "SIDEWAY / PHÂN KỲ"
         )
 
-        last_4_candles = df_1h.iloc[-5:-1]
-        candles_summary = ""
-        for _, row in last_4_candles.iterrows():
-            candles_summary += (
-                f"- Nến {row['timestamp'].strftime('%H:%M')}: "
-                f"O={row['open']:.2f}, H={row['high']:.2f}, L={row['low']:.2f}, C={row['close']:.2f}\n"
-            )
+        candles_summary = "".join([
+            f"- Nến {df_1h['timestamp'].iloc[k].strftime('%H:%M')}: O={df_1h['open'].iloc[k]:.2f}, H={df_1h['high'].iloc[k]:.2f}, L={df_1h['low'].iloc[k]:.2f}, C={df_1h['close'].iloc[k]:.2f}\n"
+            for k in range(-5, -1)
+        ])
 
         return {
-            "btc_price": float(latest_1h['close']),
+            "btc_price": latest_close_1h,
             "trend_4h": trend_desc,
-            "ema50_4h": float(past_4h['EMA_50']),
-            "ema200_4h": float(past_4h['EMA_200']),
+            "ema50_4h": ema50_4h,
+            "ema200_4h": ema200_4h,
             "candles_summary": candles_summary
         }
     except Exception as e:
         print(f"❌ Lỗi lấy dữ liệu BTC overview: {e}")
         return None
+    finally:
+        if df_4h is not None: del df_4h
+        if df_1h is not None: del df_1h
+        try:
+            del ema50_s
+            del ema200_s
+        except Exception:
+            pass
 
 
 def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
@@ -110,7 +128,6 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
     fng_data = fetch_fear_and_greed()
 
     if not btc_data:
-        # Fallback an toàn nếu lỗi mạng kết nối tới Binance
         return MarketHealthReport(
             market_regime="CHOPPY_CAUTION",
             can_open_trades=True,
@@ -151,10 +168,10 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
         getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
     ]
 
-    last_error = None
+    last_error_str = ""
     for model_name in models_to_try:
         try:
-            response = client.models.generate_content(
+            response = _client.models.generate_content(
                 model=model_name,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -163,21 +180,23 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
                     temperature=0.1,
                 ),
             )
-            report = MarketHealthReport.model_validate_json(response.text)
+            raw_text = str(response.text)
+            del response
+            report = MarketHealthReport.model_validate_json(raw_text)
             _cached_market_health = report
             _last_check_time = now
             return report
         except Exception as e:
-            last_error = e
-            print(f"[CANH BAO] [Gatekeeper] Model {model_name} gap su co: {e}. Dang chuyen sang model tiep theo...")
+            last_error_str = str(e)
+            e = None
+            print(f"⚠️ [Gatekeeper] Model {model_name} gặp sự cố: {last_error_str}. Đang chuyển model...")
             time.sleep(1)
 
-    print(f"[LOI] Khong the goi bat ky Gemini Macro Gatekeeper model nao: {last_error}")
-    # Fallback an toàn
+    print(f"❌ [Gatekeeper] Không thể gọi bất kỳ Gemini Macro Gatekeeper model nào: {last_error_str}")
     return MarketHealthReport(
         market_regime="CHOPPY_CAUTION",
         can_open_trades=True,
         min_confidence_score=7,
         fng_summary=f"F&G: {fng_data['value']}/100 ({fng_data['classification']})",
-        summary=f"Loi goi AI Gatekeeper: {last_error}"
+        summary=f"Lỗi gọi AI Gatekeeper: {last_error_str}"
     )

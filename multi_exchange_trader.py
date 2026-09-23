@@ -1,14 +1,21 @@
 """
 Module điều phối giao dịch đa sàn (Multi-Exchange Trader).
 Cho phép bot kết nối và đặt lệnh song song trên nhiều sàn cùng lúc (Binance, Bybit).
+Tối ưu hóa bộ nhớ: Sử dụng Singleton Exchange Instances thay vì khởi tạo mới liên tục.
 """
 
 import ccxt
 import config
 
+_cached_clients = {}
+
 def get_exchange_client(exchange_name: str):
-    """Khởi tạo CCXT client cho sàn tương ứng ở chế độ Testnet/Sandbox"""
+    """Lấy CCXT client Singleton cho sàn tương ứng ở chế độ Testnet/Sandbox"""
+    global _cached_clients
     name = exchange_name.lower().strip()
+
+    if name in _cached_clients:
+        return _cached_clients[name]
 
     if name == 'binance':
         client = ccxt.binance({
@@ -21,6 +28,7 @@ def get_exchange_client(exchange_name: str):
             }
         })
         client.set_sandbox_mode(True)
+        _cached_clients[name] = client
         return client
 
     elif name == 'bybit':
@@ -35,13 +43,14 @@ def get_exchange_client(exchange_name: str):
             }
         })
         client.set_sandbox_mode(True)
+        _cached_clients[name] = client
         return client
 
     else:
         raise ValueError(f"Sàn {exchange_name} chưa được hỗ trợ.")
 
 def check_all_testnet_balances() -> dict:
-    """Kiểm tra số dư trên toàn bộ các sàn đang kích hoạt"""
+    """Kiểm tra số dư trên toàn bộ các sàn đang kích hoạt (Tối ưu RAM)"""
     results = {}
     active_exchanges = getattr(config, 'ACTIVE_TESTNET_EXCHANGES', ['binance', 'bybit'])
 
@@ -50,10 +59,10 @@ def check_all_testnet_balances() -> dict:
             client = get_exchange_client(name)
             balance = client.fetch_balance()
             assets = {}
-            for curr, val in balance['total'].items():
+            for curr, val in balance.get('total', {}).items():
                 if val and val > 0:
                     assets[curr] = {
-                        'free': balance['free'].get(curr, 0),
+                        'free': balance.get('free', {}).get(curr, 0),
                         'total': val
                     }
             results[name] = {"success": True, "assets": assets}
@@ -73,7 +82,9 @@ def place_multi_market_buy(symbol: str, usdt_amount: float = None) -> dict:
     for name in active_exchanges:
         try:
             client = get_exchange_client(name)
-            client.load_markets()
+            # Chỉ nạp markets nếu chưa có
+            if not client.markets:
+                client.load_markets()
 
             ticker = client.fetch_ticker(symbol)
             price = ticker['last']
@@ -109,10 +120,11 @@ def place_multi_market_sell(symbol: str) -> dict:
     for name in active_exchanges:
         try:
             client = get_exchange_client(name)
-            client.load_markets()
+            if not client.markets:
+                client.load_markets()
 
             balance = client.fetch_balance()
-            free_amount = balance['free'].get(base_asset, 0)
+            free_amount = balance.get('free', {}).get(base_asset, 0)
             formatted_amount = float(client.amount_to_precision(symbol, free_amount))
 
             if formatted_amount <= 0:
@@ -134,20 +146,3 @@ def place_multi_market_sell(symbol: str) -> dict:
             results[name] = {"success": False, "error": str(e)}
 
     return results
-
-if __name__ == "__main__":
-    print("==================================================")
-    print("🌐 KIỂM TRA SỐ DƯ TOÀN BỘ CÁC SÀN ĐANG KÍCH HOẠT")
-    print("==================================================")
-    balances = check_all_testnet_balances()
-    for ex, data in balances.items():
-        print(f"\n📌 SÀN: {ex.upper()} TESTNET")
-        if data['success']:
-            if not data['assets']:
-                print("   (Ví trống hoặc chưa nạp Testnet USDT)")
-            for c in ['USDT', 'BTC', 'ETH', 'SOL', 'BNB', 'XRP']:
-                if c in data['assets']:
-                    info = data['assets'][c]
-                    print(f"   • {c:<5}: {info['free']:>12.4f} khả dụng")
-        else:
-            print(f"   ❌ Lỗi: {data['error']}")

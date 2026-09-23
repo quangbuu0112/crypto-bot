@@ -13,14 +13,25 @@ import json
 import os
 import threading
 import time
+import ctypes
 from datetime import datetime, timezone
 import requests
+from concurrent.futures import ThreadPoolExecutor
 import config
 from market_gatekeeper import check_market_health
 from paper_trader import load_trades
 import multi_exchange_trader
 
 _start_time = datetime.now()
+
+# Persistent HTTP Session với Connection Pooling cố định
+_http_session = requests.Session()
+adapter = requests.adapters.HTTPAdapter(pool_connections=5, pool_maxsize=10, max_retries=2)
+_http_session.mount('https://', adapter)
+_http_session.mount('http://', adapter)
+
+# Giới hạn tối đa 3 worker thread xử lý lệnh (thay vì spawn vô hạn thread)
+_thread_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="TgWorker")
 
 def reply_telegram(chat_id: str, text: str):
     """Gửi tin nhắn phản hồi về Telegram của người dùng (có fallback plain text nếu lỗi Markdown)"""
@@ -34,11 +45,11 @@ def reply_telegram(chat_id: str, text: str):
         "parse_mode": "Markdown"
     }
     try:
-        res = requests.post(url, json=payload, timeout=10)
+        res = _http_session.post(url, json=payload, timeout=10)
         # Nếu Telegram báo lỗi 400 (lỗi entity Markdown parse), tự động gửi lại dưới dạng plain text
         if res.status_code != 200:
             plain_text = text.replace("*", "").replace("`", "").replace("_", "")
-            requests.post(url, json={"chat_id": chat_id, "text": plain_text}, timeout=10)
+            _http_session.post(url, json={"chat_id": chat_id, "text": plain_text}, timeout=10)
     except Exception as e:
         print(f"❌ [Telegram Commander] Lỗi gửi tin nhắn: {e}")
 
@@ -437,8 +448,9 @@ def _listener_worker(scan_callback=None):
         print("⚠️ [Telegram Commander] Chưa cấu hình TELEGRAM_BOT_TOKEN hoặc TELEGRAM_CHAT_ID.")
         return
 
-    print("🎮 [Telegram Commander] Đã kích hoạt bộ lắng nghe lệnh tương tác 2 chiều!")
+    print("🎮 [Telegram Commander] Đã kích hoạt bộ lắng nghe lệnh (Tối ưu RAM ThreadPool)!")
     offset = None
+    poll_count = 0
 
     while True:
         try:
@@ -447,7 +459,7 @@ def _listener_worker(scan_callback=None):
             if offset:
                 params["offset"] = offset
 
-            res = requests.get(url, params=params, timeout=25)
+            res = _http_session.get(url, params=params, timeout=25)
             if res.status_code == 200:
                 data = res.json()
                 if data.get("ok"):
@@ -469,12 +481,18 @@ def _listener_worker(scan_callback=None):
                             print(f"⚠️ [Telegram Commander] Từ chối truy cập từ chat_id lạ: {sender_chat_id}")
                             continue
 
-                        # Xử lý lệnh
-                        threading.Thread(
-                            target=process_message,
-                            args=(sender_chat_id, msg_text, scan_callback),
-                            daemon=True
-                        ).start()
+                        # Xử lý lệnh qua ThreadPool thay vì spawn thread mới
+                        _thread_pool.submit(process_message, sender_chat_id, msg_text, scan_callback)
+
+            # Cứ mỗi 50 chu kỳ polling (~15 phút), thu hồi RAM arena của thread
+            poll_count += 1
+            if poll_count >= 50:
+                poll_count = 0
+                try:
+                    libc = ctypes.CDLL("libc.so.6")
+                    libc.malloc_trim(0)
+                except Exception:
+                    pass
 
         except requests.exceptions.Timeout:
             pass
