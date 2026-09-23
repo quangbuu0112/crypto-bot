@@ -78,35 +78,56 @@ def get_help_message() -> str:
 def handle_balance_command(chat_id: str):
     from paper_trader import get_current_paper_balance, load_trades
 
-    current_paper_bal = get_current_paper_balance()
-    initial_cap = float(getattr(config, 'INITIAL_PAPER_BALANCE', 500.0))
-    net_profit = current_paper_bal - initial_cap
-    roi_pct = (net_profit / initial_cap) * 100.0 if initial_cap > 0 else 0.0
+    bal_data = get_current_paper_balance()
+    initial_cap_per_ex = float(getattr(config, 'INITIAL_PAPER_BALANCE_PER_EXCHANGE', 500.0))
+    exchanges = getattr(config, 'PAPER_EXCHANGES', ['binance', 'bybit'])
+    total_initial = initial_cap_per_ex * len(exchanges)
+
+    bal_binance = bal_data.get('binance', initial_cap_per_ex)
+    bal_bybit = bal_data.get('bybit', initial_cap_per_ex)
+    bal_total = bal_data.get('total', total_initial)
+
+    binance_profit = bal_binance - initial_cap_per_ex
+    binance_roi = (binance_profit / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
+
+    bybit_profit = bal_bybit - initial_cap_per_ex
+    bybit_roi = (bybit_profit / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
+
+    total_profit = bal_total - total_initial
+    total_roi = (total_profit / total_initial) * 100.0 if total_initial > 0 else 0.0
 
     trades = load_trades()
-    open_trades = [t for t in trades if t.get("status") == "OPEN"]
-    closed_trades = [t for t in trades if t.get("status", "").startswith("CLOSED")]
+    open_binance = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "binance"]
+    closed_binance = [t for t in trades if t.get("status") != "OPEN" and t.get("exchange", "binance") == "binance"]
+
+    open_bybit = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "bybit"]
+    closed_bybit = [t for t in trades if t.get("status") != "OPEN" and t.get("exchange", "binance") == "bybit"]
 
     msg = (
-        "💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN* 💰\n"
-        "📄 *Chế độ:* `Live Paper Trading (Giả lập với giá thật)`\n\n"
-        "💵 *TỔNG KẾT VÍ PAPER TRADING:*\n"
-        f"• *Vốn khởi điểm:* `${initial_cap:,.2f} USDT`\n"
-        f"• *Số dư khả dụng hiện tại:* `💵 ${current_paper_bal:,.2f} USDT`\n"
-        f"• *Tổng Realized PnL:* `{net_profit:+,.2f} USD` (`{roi_pct:+.2f}%`)\n"
-        f"• *Số vị thế đang chạy (OPEN):* `{len(open_trades)} lệnh`\n"
-        f"• *Tổng số lệnh đã hoàn tất:* `{len(closed_trades)} lệnh`\n\n"
+        "💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN (DUAL-EXCHANGE)* 💰\n"
+        "📄 *Chế độ:* `Live Parallel Paper Trading (Binance + Bybit)`\n\n"
+        "🏦 *SÀN BINANCE PAPER:*\n"
+        f"• *Vốn khởi điểm:* `${initial_cap_per_ex:,.2f} USDT`\n"
+        f"• *Số dư khả dụng:* `💵 ${bal_binance:,.2f} USDT`\n"
+        f"• *Realized PnL:* `{binance_profit:+,.2f} USDT` (`{binance_roi:+.2f}%`)\n"
+        f"• *Vị thế OPEN:* `{len(open_binance)} lệnh` | *Đã đóng:* `{len(closed_binance)} lệnh`\n\n"
+        "🏦 *SÀN BYBIT PAPER:*\n"
+        f"• *Vốn khởi điểm:* `${initial_cap_per_ex:,.2f} USDT`\n"
+        f"• *Số dư khả dụng:* `💵 ${bal_bybit:,.2f} USDT`\n"
+        f"• *Realized PnL:* `{bybit_profit:+,.2f} USDT` (`{bybit_roi:+.2f}%`)\n"
+        f"• *Vị thế OPEN:* `{len(open_bybit)} lệnh` | *Đã đóng:* `{len(closed_bybit)} lệnh`\n\n"
+        "💼 *TỔNG DANH MỤC TOÀN HỆ THỐNG:*\n"
+        f"• *Tổng vốn ban đầu:* `${total_initial:,.2f} USDT`\n"
+        f"• *Tổng tài sản hiện tại:* `💵 ${bal_total:,.2f} USDT`\n"
+        f"• *Tổng Realized PnL:* `{total_profit:+,.2f} USDT` (`{total_roi:+.2f}%`)\n"
+        f"• *Tổng vị thế đang chạy:* `{len(open_binance) + len(open_bybit)} lệnh`\n\n"
     )
 
     # Nếu có cấu hình Testnet thì truy vấn thêm số dư sàn Testnet
     if getattr(config, 'USE_TESTNET', False) or (getattr(config, 'BINANCE_TESTNET_API_KEY', '') and getattr(config, 'BINANCE_TESTNET_SECRET', '')):
         try:
             balances = multi_exchange_trader.check_all_testnet_balances()
-            target_coins = set(['USDT', 'USDC'])
-            for s in getattr(config, 'SYMBOLS', []):
-                target_coins.add(s.split('/')[0].upper())
-
-            msg += "🏦 *SỐ DƯ SÀN TESTNET (BINANCE / BYBIT):*\n"
+            msg += "🏦 *SỐ DƯ SÀN TESTNET THỰC TẾ (API TESTNET):*\n"
             for ex_name, data in balances.items():
                 msg += f"• *Sàn {ex_name.upper()}:* "
                 if data.get("success"):
@@ -120,53 +141,67 @@ def handle_balance_command(chat_id: str):
         except Exception:
             pass
 
-    msg += "💡 *Mẹo:* Bạn có thể gõ `/orders` để xem chi tiết các lệnh, hoặc `/report` để xem thống kê hiệu suất chi tiết."
+    msg += "💡 *Mẹo:* Bạn có thể gõ `/orders` để xem chi tiết các lệnh, hoặc `/report` để xem thống kê hiệu suất."
     reply_telegram(chat_id, msg)
 
 def handle_orders_command(chat_id: str):
     trades = load_trades()
-    open_trades = [t for t in trades if t.get("status") == "OPEN"]
+    open_binance = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "binance"]
+    open_bybit = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "bybit"]
     closed_trades = [t for t in trades if t.get("status") != "OPEN"]
 
-    msg = "📜 *BÁO CÁO VỊ THẾ & LỊCH SỬ LỆNH (DUAL REGIME)* 📜\n\n"
+    msg = "📜 *BÁO CÁO VỊ THẾ & LỊCH SỬ LỆNH (DUAL-EXCHANGE)* 📜\n\n"
 
-    msg += f"📌 *LỆNH ĐANG MỞ ({len(open_trades)} vị thế):*\n"
-    if open_trades:
-        for t in open_trades:
-            strat_icon = "🎯" if t.get("strategy_type") == "SNIPER_TREND" else "📦"
-            strat_label = "SNIPER TREND" if t.get("strategy_type") == "SNIPER_TREND" else "SIDEWAY RANGE"
-            pos_sz = t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0))
-            risk_u = t.get('risk_usd', 0.0)
-            risk_p = t.get('risk_pct', 0.0)
-            size_desc = f"${pos_sz:,.2f} USDT (Rủi ro: ${risk_u:,.2f} ~ {risk_p:.1f}%)" if risk_u > 0 else f"${pos_sz:,.2f} USDT"
+    def format_open_trade(t):
+        strat_icon = "🎯" if t.get("strategy_type") == "SNIPER_TREND" else "📦"
+        strat_label = "SNIPER TREND" if t.get("strategy_type") == "SNIPER_TREND" else "SIDEWAY RANGE"
+        pos_sz = t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0))
+        risk_u = t.get('risk_usd', 0.0)
+        risk_p = t.get('risk_pct', 0.0)
+        size_desc = f"${pos_sz:,.2f} USDT (Rủi ro: ${risk_u:,.2f} ~ {risk_p:.1f}%)" if risk_u > 0 else f"${pos_sz:,.2f} USDT"
 
-            if t.get("strategy_type") == "SIDEWAY_RANGE":
-                msg += (
-                    f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
-                    f"  ├─ Khối lượng vào: `{size_desc}`\n"
-                    f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
-                    f"  ├─ Mục tiêu Chốt lời: `${t.get('take_profit', 0):,.2f}` (+{t.get('tp_pct', 0):.1f}%)\n"
-                    f"  ├─ Cắt lỗ SL: `${t.get('stop_loss', 0):,.2f}` (-{t.get('sl_pct', 0):.1f}%)\n"
-                    f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
-                )
-            else:
-                tp1_status = "✅ ĐÃ CHỐT 30%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
-                sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
-                msg += (
-                    f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
-                    f"  ├─ Khối lượng vào: `{size_desc}`\n"
-                    f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
-                    f"  ├─ TP1 (Chốt 30%): `{tp1_status}`\n"
-                    f"  ├─ TP2 (Gồng 70%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
-                    f"  ├─ Cắt lỗ SL: `{sl_desc}`\n"
-                    f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
-                )
+        if t.get("strategy_type") == "SIDEWAY_RANGE":
+            return (
+                f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                f"  ├─ Khối lượng vào: `{size_desc}`\n"
+                f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
+                f"  ├─ TP: `${t.get('take_profit', 0):,.2f}` (+{t.get('tp_pct', 0):.1f}%)\n"
+                f"  ├─ Cắt lỗ SL: `${t.get('stop_loss', 0):,.2f}` (-{t.get('sl_pct', 0):.1f}%)\n"
+                f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
+            )
+        else:
+            tp1_share_pct = int(t.get('tp1_share', 0.3) * 100)
+            tp2_share_pct = int(t.get('tp2_share', 0.7) * 100)
+            tp1_status = f"✅ ĐÃ CHỐT {tp1_share_pct}%" if t.get("tp1_hit") else f"${t.get('take_profit_1', t.get('take_profit', 0)):,.2f} (+{t.get('tp1_pct', 0):.1f}%)"
+            sl_desc = f"${t.get('stop_loss', 0):,.2f} (🛡️ Hòa vốn Entry)" if t.get("tp1_hit") else f"${t.get('stop_loss', 0):,.2f} (-{t.get('sl_pct', 0):.1f}%)"
+            return (
+                f"• {strat_icon} *{t['symbol']}* `[{strat_label}]` (AI: `{t.get('ai_score', 'N/A')}/10`)\n"
+                f"  ├─ Khối lượng vào: `{size_desc}`\n"
+                f"  ├─ Giá vào (Entry): `${t['entry_price']:,.2f}`\n"
+                f"  ├─ TP1 (Chốt {tp1_share_pct}%): `{tp1_status}`\n"
+                f"  ├─ TP2 (Gồng {tp2_share_pct}%): `${t.get('take_profit_2', t.get('take_profit', 0)):,.2f}` (+{t.get('tp2_pct', t.get('tp_pct', 0)):.1f}%)\n"
+                f"  ├─ Cắt lỗ SL: `{sl_desc}`\n"
+                f"  └─ Mở lúc: `{t.get('opened_at', 'N/A')}`\n"
+            )
+
+    msg += f"🏦 *SÀN BINANCE ({len(open_binance)} vị thế OPEN):*\n"
+    if open_binance:
+        for t in open_binance:
+            msg += format_open_trade(t)
     else:
-        msg += "• _Hiện không có vị thế nào đang mở._\n"
+        msg += "• _Hiện không có vị thế nào đang mở trên Binance._\n"
 
-    msg += f"\n🏁 *5 LỆNH ĐÃ ĐÓNG GẦN NHẤT:*\n"
+    msg += f"\n🏦 *SÀN BYBIT ({len(open_bybit)} vị thế OPEN):*\n"
+    if open_bybit:
+        for t in open_bybit:
+            msg += format_open_trade(t)
+    else:
+        msg += "• _Hiện không có vị thế nào đang mở trên Bybit._\n"
+
+    msg += f"\n🏁 *6 LỆNH ĐÃ ĐÓNG GẦN NHẤT:*\n"
     if closed_trades:
-        for t in closed_trades[-5:]:
+        for t in closed_trades[-6:]:
+            ex_tag = t.get('exchange', 'binance').upper()
             status_icon = "🟢" if "TP" in t.get("status", "") or "BE" in t.get("status", "") else "🔴"
             pnl = t.get("pnl_pct", 0)
             pnl_sign = f"+{pnl:.1f}%" if pnl >= 0 else f"{pnl:.1f}%"
@@ -174,7 +209,7 @@ def handle_orders_command(chat_id: str):
             usd_sign = f" (+${pnl_usd_val:,.2f})" if (pnl_usd_val is not None and pnl_usd_val >= 0) else (f" (-${abs(pnl_usd_val):,.2f})" if pnl_usd_val is not None else "")
             s_type = "🎯 Trend" if t.get("strategy_type") == "SNIPER_TREND" else "📦 Sideway"
             msg += (
-                f"{status_icon} *{t['symbol']}* ({s_type}) | `{t.get('status')}`\n"
+                f"{status_icon} `[{ex_tag}]` *{t['symbol']}* ({s_type}) | `{t.get('status')}`\n"
                 f"  ├─ PnL: *{pnl_sign}*{usd_sign} | Entry: `${t['entry_price']:,.2f}` -> Đóng: `${t.get('close_price', 0):,.2f}`\n"
                 f"  └─ Thời gian: `{t.get('closed_at', t.get('opened_at', 'N/A'))}`\n"
             )
@@ -333,9 +368,15 @@ def handle_status_command(chat_id: str):
     else:
         sizing_desc = f"FIXED (${getattr(config, 'ORDER_AMOUNT_USDT', 50.0):,.2f} USDT/lệnh)"
 
+    exchanges_str = ", ".join([e.upper() for e in getattr(config, 'PAPER_EXCHANGES', ['binance', 'bybit'])])
+    cap_per_ex = getattr(config, 'INITIAL_PAPER_BALANCE_PER_EXCHANGE', 500.0)
+
     msg = (
-        "📊 *THÔNG TIN HỆ THỐNG BOT (DUAL REGIME)* 📊\n\n"
-        f"• *Chế độ vận hành:* `DUAL REGIME: {dual_mode}`\n"
+        "📊 *THÔNG TIN HỆ THỐNG BOT (DUAL-EXCHANGE)* 📊\n\n"
+        f"• *Chế độ giao dịch:* `Dual-Exchange Parallel Paper Trading`\n"
+        f"  ├─ 🏦 *Sàn chạy song song:* `{exchanges_str}`\n"
+        f"  └─ 💵 *Vốn giả lập:* `${cap_per_ex:,.0f} USDT / sàn` (Tổng `$1,000 USDT`)\n"
+        f"• *Chiến lược:* `DUAL REGIME: {dual_mode}`\n"
         f"  ├─ 🎯 *Trend:* `30% TP1 / 70% TP2 (SL ATR tối ưu)`\n"
         f"  └─ 📦 *Sideway:* `Bắt đáy Lower BB + RSI <= 38 (TP SMA20)`\n"
         f"• *Quản trị Vốn:* `{sizing_desc}`\n"
@@ -343,8 +384,7 @@ def handle_status_command(chat_id: str):
         f"• *Chu kỳ quét:* Mỗi `{config.SLEEP_INTERVAL_SECONDS // 60} phút`\n"
         f"• *Danh mục theo dõi:* `{', '.join(config.SYMBOLS)}`\n"
         f"• *Ngưỡng duyệt Gemini AI:* `>= {getattr(config, 'MIN_AI_CONFIDENCE_SCORE', 8)}/10 điểm`\n"
-        f"• *Model AI Chính:* `{model_name}`\n"
-        f"• *Model AI Dự phòng:* `{fallback_name}`\n\n"
+        f"• *Model AI:* `{model_name}` (Dự phòng: `{fallback_name}`)\n\n"
         "✅ *Trạng thái: Hoạt động bình thường 24/7!*"
     )
     reply_telegram(chat_id, msg)
@@ -355,42 +395,65 @@ def handle_report_command(chat_id: str):
     closed_trades = [t for t in trades if t.get("status") != "OPEN"]
 
     if not closed_trades:
-        info = "📊 *BÁO CÁO HIỆU SUẤT PAPER TRADING* 📊\n\n"
+        info = "📊 *BÁO CÁO HIỆU SUẤT PAPER TRADING (DUAL-EXCHANGE)* 📊\n\n"
         if open_trades:
             info += (
                 f"• _Chưa có lệnh nào đóng (TP/SL) để tính toán thống kê PnL._\n"
-                f"• Hiện đang có *{len(open_trades)} vị thế đang mở*.\n\n"
+                f"• Hiện đang có *{len(open_trades)} vị thế đang mở* trên Binance & Bybit.\n\n"
                 f"👉 Gõ `/orders` để theo dõi các lệnh đang chạy!"
             )
         else:
             info += (
                 "• _Chưa có lịch sử giao dịch nào được ghi nhận._\n"
-                "• Bot đang theo dõi và quét thị trường theo chu kỳ để tìm điểm vào lệnh đạt chuẩn.\n\n"
+                "• Bot đang theo dõi và quét thị trường song song cả Binance & Bybit.\n\n"
                 "👉 Gõ `/scan` để yêu cầu bot quét thị trường ngay lập tức!"
             )
         reply_telegram(chat_id, info)
         return
 
-    wins = [t for t in closed_trades if float(t.get("pnl_pct", 0)) > 0]
-    losses = [t for t in closed_trades if float(t.get("pnl_pct", 0)) <= 0]
-    total_closed = len(closed_trades)
-    win_rate = (len(wins) / total_closed) * 100 if total_closed > 0 else 0.0
-    total_pnl = sum(float(t.get("pnl_pct", 0)) for t in closed_trades)
-    total_usd = sum(float(t.get("pnl_usd", 0.0)) for t in closed_trades)
-    avg_win = sum(float(t.get("pnl_pct", 0)) for t in wins) / len(wins) if wins else 0.0
-    avg_loss = sum(float(t.get("pnl_pct", 0)) for t in losses) / len(losses) if losses else 0.0
+    def calc_stats(trade_list):
+        if not trade_list:
+            return {
+                "count": 0, "wins": 0, "losses": 0, "win_rate": 0.0,
+                "total_pnl": 0.0, "total_usd": 0.0, "avg_win": 0.0, "avg_loss": 0.0
+            }
+        wins = [t for t in trade_list if float(t.get("pnl_pct", 0)) > 0]
+        losses = [t for t in trade_list if float(t.get("pnl_pct", 0)) <= 0]
+        count = len(trade_list)
+        win_rate = (len(wins) / count) * 100.0 if count > 0 else 0.0
+        total_pnl = sum(float(t.get("pnl_pct", 0)) for t in trade_list)
+        total_usd = sum(float(t.get("pnl_usd", 0.0)) for t in trade_list)
+        avg_win = sum(float(t.get("pnl_pct", 0)) for t in wins) / len(wins) if wins else 0.0
+        avg_loss = sum(float(t.get("pnl_pct", 0)) for t in losses) / len(losses) if losses else 0.0
+        return {
+            "count": count, "wins": len(wins), "losses": len(losses), "win_rate": win_rate,
+            "total_pnl": total_pnl, "total_usd": total_usd, "avg_win": avg_win, "avg_loss": avg_loss
+        }
 
-    usd_summary = f" (*{total_usd:+,.2f} USDT*)" if total_usd != 0 else ""
+    binance_trades = [t for t in closed_trades if t.get("exchange", "binance") == "binance"]
+    bybit_trades = [t for t in closed_trades if t.get("exchange", "binance") == "bybit"]
+
+    b_stat = calc_stats(binance_trades)
+    by_stat = calc_stats(bybit_trades)
+    tot_stat = calc_stats(closed_trades)
 
     msg = (
-        "📊 *BÁO CÁO TỔNG HỢP HIỆU SUẤT BOT* 📊\n\n"
-        f"• *Tổng số lệnh đã đóng:* `{total_closed} lệnh`\n"
-        f"• *Thắng (WIN):* `{len(wins)} lệnh` (*{win_rate:.1f}%*)\n"
-        f"• *Thua (LOSS):* `{len(losses)} lệnh` (*{100 - win_rate:.1f}%*)\n"
-        f"• *Tổng PnL tích lũy:* *{total_pnl:+.2f}%*{usd_summary}\n"
-        f"• *Lãi trung bình / WIN:* `+{avg_win:.2f}%`\n"
-        f"• *Lỗ trung bình / LOSS:* `{avg_loss:.2f}%`\n\n"
-        "📁 _Toàn bộ nhật ký chi tiết được lưu trong file report._"
+        "📊 *BÁO CÁO TỔNG HỢP HIỆU SUẤT (DUAL-EXCHANGE)* 📊\n\n"
+        "🏦 *SÀN BINANCE ($500 khởi điểm):*\n"
+        f"• *Lệnh đã đóng:* `{b_stat['count']} lệnh` | *Thắng:* `{b_stat['wins']}` | *Thua:* `{b_stat['losses']}`\n"
+        f"• *Tỷ lệ thắng (Win Rate):* `🏆 {b_stat['win_rate']:.1f}%`\n"
+        f"• *Realized PnL:* *{b_stat['total_pnl']:+.2f}%* (*{b_stat['total_usd']:+,.2f} USDT*)\n"
+        f"• *Lãi TB/WIN:* `+{b_stat['avg_win']:.2f}%` | *Lỗ TB/LOSS:* `{b_stat['avg_loss']:.2f}%`\n\n"
+        "🏦 *SÀN BYBIT ($500 khởi điểm):*\n"
+        f"• *Lệnh đã đóng:* `{by_stat['count']} lệnh` | *Thắng:* `{by_stat['wins']}` | *Thua:* `{by_stat['losses']}`\n"
+        f"• *Tỷ lệ thắng (Win Rate):* `🏆 {by_stat['win_rate']:.1f}%`\n"
+        f"• *Realized PnL:* *{by_stat['total_pnl']:+.2f}%* (*{by_stat['total_usd']:+,.2f} USDT*)\n"
+        f"• *Lãi TB/WIN:* `+{by_stat['avg_win']:.2f}%` | *Lỗ TB/LOSS:* `{by_stat['avg_loss']:.2f}%`\n\n"
+        "💼 *TỔNG DANH MỤC TOÀN HỆ THỐNG ($1,000 khởi điểm):*\n"
+        f"• *Tổng số lệnh đã đóng:* `{tot_stat['count']} lệnh`\n"
+        f"• *Win Rate tổng:* `🏆 {tot_stat['win_rate']:.1f}%` ({tot_stat['wins']}W / {tot_stat['losses']}L)\n"
+        f"• *Tổng Lợi nhuận:* *{tot_stat['total_usd']:+,.2f} USDT* (*{tot_stat['total_pnl']:+.2f}%*)\n\n"
+        "📁 _Toàn bộ dữ liệu được cập nhật thời gian thực từ Binance & Bybit._"
     )
     reply_telegram(chat_id, msg)
 

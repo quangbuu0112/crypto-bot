@@ -19,8 +19,13 @@ BINANCE_TESTNET_SECRET = os.getenv("BINANCE_TESTNET_SECRET")
 BYBIT_TESTNET_API_KEY = os.getenv("BYBIT_TESTNET_API_KEY")
 BYBIT_TESTNET_SECRET = os.getenv("BYBIT_TESTNET_SECRET")
 
-USE_TESTNET = False                               # False: Paper Trading 100% (Giá thực tế từ sàn Binance, không đặt lệnh tiền thật)
+USE_TESTNET = False                               # False: Paper Trading 100% (Giá thực tế từ sàn, không đặt lệnh tiền thật)
 ACTIVE_TESTNET_EXCHANGES = ['binance', 'bybit']   # Dùng khi bật USE_TESTNET = True
+
+# Cấu hình Song song 2 Sàn Paper Trading
+PAPER_EXCHANGES = ['binance', 'bybit']            # Chạy mô phỏng đồng thời trên cả Binance và Bybit
+INITIAL_PAPER_BALANCE_PER_EXCHANGE = 500.0        # Vốn khởi điểm $500 USDT cho MỖI sàn
+INITIAL_PAPER_BALANCE = 500.0                     # Fallback
 
 # Cấu hình Quản trị Vốn & Khối lượng vào lệnh (Position Sizing Mode)
 POSITION_SIZING_MODE = os.getenv("POSITION_SIZING_MODE", "ATR_RISK")  # "ATR_RISK" (mặc định) hoặc "FIXED"
