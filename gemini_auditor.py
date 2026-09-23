@@ -78,8 +78,8 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
     """
 
     models_to_try = [
-        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash'),
-        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
+        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.5-flash-lite'),
+        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.6-flash')
     ]
 
     last_error_str = ""

@@ -164,8 +164,8 @@ def check_market_health(force_refresh: bool = False) -> MarketHealthReport:
     """
 
     models_to_try = [
-        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.6-flash'),
-        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.5-flash-lite')
+        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.5-flash-lite'),
+        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.6-flash')
     ]
 
     last_error_str = ""
