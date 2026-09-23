@@ -42,7 +42,7 @@ def send_telegram_alert(message: str):
 
 def run_bot_cycle():
     print("\n" + "=" * 55)
-    print(f"🔍 [{time.strftime('%Y-%m-%d %H:%M:%S')}] Bắt đầu chu kỳ quét mới...")
+    print(f"🔍 [{time.strftime('%Y-%m-%d %H:%M:%S')}] Bắt đầu chu kỳ quét mới (Binance & Bybit Độc lập)...")
     print("=" * 55)
 
     # BƯỚC 1: BỘ LỌC VĨ MÔ TOÀN THỊ TRƯỜNG (MACRO GATEKEEPER)
@@ -58,76 +58,77 @@ def run_bot_cycle():
             return
 
     min_required_score = market_health.min_confidence_score if market_health else 7
+    macro_info = (
+        f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
+        if market_health else ""
+    )
 
-    # KIỂM TRA CHI TIẾT TỪNG ĐỒNG COIN THEO TỪNG BƯỚC
-    for symbol in config.SYMBOLS:
-        print(f"\n👉 [KIỂM TRA COIN] {symbol}:")
+    exchanges = getattr(config, 'PAPER_EXCHANGES', ['binance', 'bybit'])
 
-        # 🛡️ KIỂM TRA GIÁP 3: MẠCH NGẮT CHUỖI THUA (COOLDOWN)
-        cooldown_info = is_symbol_in_cooldown(symbol)
-        if cooldown_info.get("in_cooldown"):
-            print(f"   └─ 🛡️ [GIÁP 3: COOLDOWN] {cooldown_info.get('detail')} -> Tạm dừng quét coin này để bảo toàn vốn.")
-            continue
+    # QUÉT ĐỘC LẬP TỪNG SÀN GIAO DỊCH
+    for ex_name in exchanges:
+        ex_name_upper = ex_name.upper()
+        print(f"\n==================================================")
+        print(f"🏦 [QUÉT PHÂN TÍCH ĐỘC LẬP SÀN {ex_name_upper}]")
+        print(f"==================================================")
 
-        tech_signal, diag = analyze_technical_signal(symbol)
+        for symbol in config.SYMBOLS:
+            print(f"\n👉 [{ex_name_upper}] Kiểm tra {symbol}:")
 
-        # Bước 2: Trend Alignment (Khung 4H)
-        step2 = diag.get("step2_trend_4h")
-        if step2:
-            if step2["status"] == "PASS":
-                print(f"   ├─ Bước 2 (Trend 4H): [ĐẠT] {step2['detail']}")
-            elif step2["status"] == "BLOCKED_BY_SHIELD":
-                print(f"   └─ Bước 2 (Trend 4H): [CHẶN BỞI GIÁP BẢO VỆ] {step2['detail']}")
+            # 🛡️ KIỂM TRA GIÁP 3: COOLDOWN RIÊNG THEO TỪNG SÀN
+            cooldown_info = is_symbol_in_cooldown(symbol, exchange_name=ex_name)
+            if cooldown_info.get("in_cooldown"):
+                print(f"   └─ 🛡️ [COOLDOWN {ex_name_upper}] {cooldown_info.get('detail')} -> Tạm dừng quét coin này trên {ex_name_upper}.")
                 continue
+
+            # Bước 2 & 3: Phân tích kỹ thuật ĐỘC LẬP trên dữ liệu nến sàn đó
+            tech_signal, diag = analyze_technical_signal(symbol, exchange_name=ex_name)
+
+            if not tech_signal:
+                step2 = diag.get("step2_trend_4h")
+                step3 = diag.get("step3_trigger_1h")
+                if step2 and step2.get("status") != "PASS":
+                    print(f"   └─ Bước 2 (Trend 4H - {ex_name_upper}): [{step2.get('status')}] {step2.get('detail')}")
+                elif step3 and step3.get("status") != "PASS":
+                    print(f"   └─ Bước 3 (Kỹ thuật 1H - {ex_name_upper}): [{step3.get('status')}] {step3.get('detail')}")
+                continue
+
+            step2 = diag.get("step2_trend_4h")
+            step3 = diag.get("step3_trigger_1h")
+            print(f"   ├─ Bước 2 (Trend 4H - {ex_name_upper}): [ĐẠT] {step2['detail']}")
+            print(f"   ├─ Bước 3 (Kỹ thuật 1H - {ex_name_upper}): [ĐẠT] {step3['detail']}")
+
+            # Bước 4: Gemini AI Audit (độc lập cho sàn đó với mức giá thực của sàn đó)
+            strat_type = tech_signal.get('strategy_type', 'SNIPER_TREND')
+            print(f"   ├─ Bước 4 (Gemini AI Audit - {strat_type} - {ex_name_upper}): Đang gửi thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
+            ai_audit = audit_signal_with_gemini(
+                symbol=tech_signal['symbol'],
+                entry_price=tech_signal['entry_price'],
+                rsi=tech_signal['rsi'],
+                adx=tech_signal['adx'],
+                vol_ratio=tech_signal['vol_ratio'],
+                candles_summary=tech_signal['candles_summary'],
+                stop_loss=tech_signal.get('stop_loss'),
+                take_profit=tech_signal.get('take_profit'),
+                atr=tech_signal.get('atr'),
+                strategy_type=strat_type,
+                exchange_name=ex_name
+            )
+
+            if ai_audit:
+                if ai_audit.decision == "APPROVE" and ai_audit.confidence_score >= min_required_score:
+                    print(f"   ├─ Bước 4 (Gemini AI Audit - {ex_name_upper}): [ĐẠT] Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
+                    print(f"   │  └─ Lý do: {ai_audit.ai_reasoning}")
+                else:
+                    print(f"   └─ Bước 4 (Gemini AI Audit - {ex_name_upper}): [TỪ CHỐI] Quyết định: {ai_audit.decision}, Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
+                    print(f"      └─ Lý do: {ai_audit.ai_reasoning}")
+                    continue
             else:
-                print(f"   └─ Bước 2 (Trend 4H): [TỪ CHỐI] {step2['detail']}")
+                print(f"   └─ Bước 4 (Gemini AI Audit - {ex_name_upper}): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
                 continue
 
-        # Bước 3: Trigger kỹ thuật (Khung 1H)
-        step3 = diag.get("step3_trigger_1h")
-        if step3:
-            if step3["status"] == "PASS":
-                print(f"   ├─ Bước 3 (Kỹ thuật 1H): [ĐẠT] {step3['detail']}")
-            elif step3["status"] == "BLOCKED_BY_SHIELD":
-                print(f"   └─ Bước 3 (Kỹ thuật 1H): [CHẶN BỞI GIÁP BẢO VỆ] {step3['detail']}")
-                continue
-            else:
-                print(f"   └─ Bước 3 (Kỹ thuật 1H): [TỪ CHỐI] {step3['detail']}")
-                continue
-
-        # Bước 4: Gemini AI Audit
-        strat_type = tech_signal.get('strategy_type', 'SNIPER_TREND')
-        print(f"   ├─ Bước 4 (Gemini AI Audit - {strat_type}): Đang gửi thẩm định ({config.GEMINI_PRIMARY_MODEL})...")
-        ai_audit = audit_signal_with_gemini(
-            symbol=tech_signal['symbol'],
-            entry_price=tech_signal['entry_price'],
-            rsi=tech_signal['rsi'],
-            adx=tech_signal['adx'],
-            vol_ratio=tech_signal['vol_ratio'],
-            candles_summary=tech_signal['candles_summary'],
-            stop_loss=tech_signal.get('stop_loss'),
-            take_profit=tech_signal.get('take_profit'),
-            atr=tech_signal.get('atr'),
-            strategy_type=strat_type
-        )
-
-        if ai_audit:
-            if ai_audit.decision == "APPROVE" and ai_audit.confidence_score >= min_required_score:
-                print(f"   ├─ Bước 4 (Gemini AI Audit): [ĐẠT] Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
-                print(f"   │  └─ Lý do: {ai_audit.ai_reasoning}")
-            else:
-                print(f"   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Quyết định: {ai_audit.decision}, Điểm {ai_audit.confidence_score}/10 (Yêu cầu >={min_required_score})")
-                print(f"      └─ Lý do: {ai_audit.ai_reasoning}")
-                continue
-        else:
-            print("   └─ Bước 4 (Gemini AI Audit): [TỪ CHỐI] Không nhận được phản hồi từ AI.")
-            continue
-
-        # Bước 5: Quản trị vị thế & Mở lệnh song song trên các sàn (Binance & Bybit)
-        exchanges = getattr(config, 'PAPER_EXCHANGES', ['binance', 'bybit'])
-        opened_trades = []
-        for ex_name in exchanges:
-            t = open_paper_trade(
+            # Bước 5: Mở vị thế paper trade trên ĐÚNG SÀN ĐÓ
+            trade = open_paper_trade(
                 symbol=symbol,
                 entry_price=tech_signal['entry_price'],
                 stop_loss=tech_signal.get('stop_loss'),
@@ -148,21 +149,12 @@ def run_bot_cycle():
                 strategy_desc=tech_signal.get('strategy_desc'),
                 exchange_name=ex_name
             )
-            if t:
-                opened_trades.append(t)
 
-        if opened_trades:
-            macro_info = (
-                f"🌐 *Thị trường:* `{market_health.market_regime}` | *{market_health.fng_summary}*\n\n"
-                if market_health else ""
-            )
-            for trade in opened_trades:
-                ex_name_upper = trade.get('exchange', 'binance').upper()
+            if trade:
                 pos_amt = trade.get('position_size_usdt', 50.0)
                 risk_usd = trade.get('risk_usd', 0.0)
                 risk_pct = trade.get('risk_pct', 0.0)
                 sizing_mode = trade.get('sizing_mode', 'ATR_RISK')
-
                 sizing_desc = f"${pos_amt:,.2f} USDT (Rủi ro: ${risk_usd:,.2f} ~ {risk_pct:.1f}%)" if sizing_mode == "ATR_RISK" else f"${pos_amt:,.2f} USDT (Cố định)"
 
                 if strat_type == "SIDEWAY_RANGE":
@@ -204,10 +196,10 @@ def run_bot_cycle():
                         f"🛡️ *Cơ chế:* Chạm TP1 tự động khóa rủi ro về 0%, gồng {tp2_s}% vị thế miễn phí rủi ro!"
                     )
                 send_telegram_alert(msg)
-        else:
-            print(f"   └─ Bước 5 (Thực thi lệnh): [BỎ QUA] Coin {symbol} đã có vị thế OPEN trên tất cả các sàn hoặc đang trong cooldown.")
+            else:
+                print(f"   └─ Bước 5 (Thực thi lệnh {ex_name_upper}): [BỎ QUA] Coin {symbol} đã có vị thế OPEN trên {ex_name_upper} hoặc đang trong cooldown.")
 
-        time.sleep(1)
+            time.sleep(1)
 
 def monitor_paper_trades():
     """Kiểm tra xem có lệnh mô phỏng nào khớp TP1/TP2/SL không để báo Telegram"""

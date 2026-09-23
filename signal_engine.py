@@ -4,32 +4,38 @@ import pandas_ta as ta
 import config
 import gc
 
-# Khởi tạo Singleton Exchange instance duy nhất
-_exchange = ccxt.binance({'enableRateLimit': True})
+# Khởi tạo Singleton Exchange instances cho Binance & Bybit
+_binance_exchange = ccxt.binance({'enableRateLimit': True})
+_bybit_exchange = ccxt.bybit({'enableRateLimit': True})
 
-def fetch_ohlcv_data(symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame:
-    """Lấy dữ liệu nến từ Binance và chuyển thành Pandas DataFrame (Tối ưu RAM)"""
+def _get_exchange(exchange_name: str = 'binance'):
+    name = (exchange_name or 'binance').lower().strip()
+    return _bybit_exchange if name == 'bybit' else _binance_exchange
+
+def fetch_ohlcv_data(symbol: str, timeframe: str, limit: int = 220, exchange_name: str = 'binance') -> pd.DataFrame:
+    """Lấy dữ liệu nến từ sàn cụ thể (Binance hoặc Bybit) và chuyển thành Pandas DataFrame (Tối ưu RAM)"""
     try:
-        ohlcv = _exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
+        exchange = _get_exchange(exchange_name)
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         del ohlcv  # Giải phóng raw list lập tức
         return df
     except Exception as e:
-        print(f"❌ Lỗi kết nối API Binance ({symbol} - {timeframe}): {e}")
+        print(f"❌ Lỗi kết nối API {exchange_name.upper()} ({symbol} - {timeframe}): {e}")
         return None
 
-def check_btc_macro_health() -> dict:
+def check_btc_macro_health(exchange_name: str = 'binance') -> dict:
     """
     🛡️ GIÁP 1: BỘ LỌC VĨ MÔ BITCOIN (BTC MACRO FILTER)
-    Kiểm tra trạng thái nến 1D của BTC:
+    Kiểm tra trạng thái nến 1D của BTC theo từng sàn:
     - Nếu BTC 1D < EMA50 VÀ RSI 1D < 45 -> Thị trường đang trong pha Bearish Shock (Cấm bắt đáy Altcoin).
     """
-    df_btc_1d = fetch_ohlcv_data("BTC/USDT", timeframe="1d", limit=60)
+    df_btc_1d = fetch_ohlcv_data("BTC/USDT", timeframe="1d", limit=60, exchange_name=exchange_name)
     if df_btc_1d is None or len(df_btc_1d) < 50:
         if df_btc_1d is not None:
             del df_btc_1d
-        return {"is_bearish": False, "detail": "Không đủ dữ liệu BTC 1D"}
+        return {"is_bearish": False, "detail": f"Không đủ dữ liệu BTC 1D trên {exchange_name.upper()}"}
 
     try:
         ema50_series = ta.ema(df_btc_1d['close'], length=50)
@@ -45,10 +51,10 @@ def check_btc_macro_health() -> dict:
             "close": close_btc,
             "ema50": ema50_btc,
             "rsi": rsi_btc,
-            "detail": f"BTC 1D: Close=${close_btc:,.0f} {'<' if close_btc < ema50_btc else '>'} EMA50(${ema50_btc:,.0f}), RSI={rsi_btc:.1f}"
+            "detail": f"BTC 1D ({exchange_name.upper()}): Close=${close_btc:,.0f} {'<' if close_btc < ema50_btc else '>'} EMA50(${ema50_btc:,.0f}), RSI={rsi_btc:.1f}"
         }
     except Exception as e:
-        return {"is_bearish": False, "detail": f"Lỗi tính BTC Macro: {e}"}
+        return {"is_bearish": False, "detail": f"Lỗi tính BTC Macro trên {exchange_name.upper()}: {e}"}
     finally:
         del df_btc_1d
         try:
@@ -57,29 +63,30 @@ def check_btc_macro_health() -> dict:
         except Exception:
             pass
 
-def analyze_technical_signal(symbol: str) -> tuple:
+def analyze_technical_signal(symbol: str, exchange_name: str = 'binance') -> tuple:
     """
-    Phân tích kỹ thuật Đa khung thời gian Thích ứng Kép (Dual-Regime Adaptive Engine).
+    Phân tích kỹ thuật Đa khung thời gian Độc lập trên từng sàn (Binance / Bybit).
     Tự động chọn 1 trong 2 chế độ:
       1. 🎯 SNIPER_TREND  : Khi 4H có Trend mạnh (Pullback EMA20, RSI tối ưu, gồng TP1/TP2 Runner)
       2. 📦 SIDEWAY_RANGE : Khi thị trường đi ngang (Bắt đáy dải dưới Lower BB, RSI quá bán <= 38, nến rút chân)
     Được bảo vệ bởi 3 Lớp Giáp Phòng Thủ (BTC Macro, Panic Dump, Cooldown).
     Trả về: (tech_signal_dict, diagnostics_dict)
     """
+    ex_tag = exchange_name.upper()
     diagnostics = {
         "step2_trend_4h": None,
         "step3_trigger_1h": None
     }
 
-    df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=220)
-    df_1h = fetch_ohlcv_data(symbol, timeframe="1h", limit=60)
+    df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=220, exchange_name=exchange_name)
+    df_1h = fetch_ohlcv_data(symbol, timeframe="1h", limit=60, exchange_name=exchange_name)
 
     if df_4h is None or df_1h is None:
         if df_4h is not None: del df_4h
         if df_1h is not None: del df_1h
         diagnostics["step2_trend_4h"] = {
             "status": "ERROR",
-            "detail": "Không thể kết nối lấy dữ liệu nến từ sàn Binance"
+            "detail": f"Không thể kết nối lấy dữ liệu nến từ sàn {ex_tag}"
         }
         return None, diagnostics
 
@@ -181,11 +188,11 @@ def analyze_technical_signal(symbol: str) -> tuple:
             if is_touch_bbl and is_oversold and is_bullish_reversal:
                 # 🛡️ KIỂM TRA GIÁP 1: BTC MACRO FILTER
                 if getattr(config, 'ENABLE_BTC_MACRO_FILTER', True) and symbol != "BTC/USDT":
-                    btc_macro = check_btc_macro_health()
+                    btc_macro = check_btc_macro_health(exchange_name=exchange_name)
                     if btc_macro["is_bearish"]:
                         diagnostics["step2_trend_4h"] = {
                             "status": "BLOCKED_BY_SHIELD",
-                            "detail": f"🛡️ [GIÁP 1: BTC MACRO] {btc_macro['detail']} -> Chặn lệnh bắt đáy Altcoin để bảo toàn vốn."
+                            "detail": f"🛡️ [GIÁP 1: BTC MACRO ({ex_tag})] {btc_macro['detail']} -> Chặn lệnh bắt đáy Altcoin để bảo toàn vốn."
                         }
                         return None, diagnostics
 
@@ -199,18 +206,18 @@ def analyze_technical_signal(symbol: str) -> tuple:
                     if is_panic_dump:
                         diagnostics["step3_trigger_1h"] = {
                             "status": "BLOCKED_BY_SHIELD",
-                            "detail": f"🛡️ [GIÁP 2: PANIC DUMP] Nến trước xả Volume={p_vol/p_vol_ma:.1f}x > 2.2x MA20. Hủy bỏ tín hiệu bắt dao rơi."
+                            "detail": f"🛡️ [GIÁP 2: PANIC DUMP ({ex_tag})] Nến trước xả Volume={p_vol/p_vol_ma:.1f}x > 2.2x MA20. Hủy bỏ tín hiệu bắt dao rơi."
                         }
                         return None, diagnostics
 
                 strategy_type = "SIDEWAY_RANGE"
                 diagnostics["step2_trend_4h"] = {
                     "status": "PASS",
-                    "detail": f"📦 [DUAL REGIME] Thị trường đi ngang/tích lũy (Kích hoạt chế độ Sideway Range)."
+                    "detail": f"📦 [DUAL REGIME ({ex_tag})] Thị trường đi ngang/tích lũy (Kích hoạt chế độ Sideway Range)."
                 }
                 diagnostics["step3_trigger_1h"] = {
                     "status": "PASS",
-                    "detail": f"📦 [SIDEWAY RANGE] Chạm đáy Lower BB (${bbl_1h:,.2f}), RSI quá bán={rsi_1h:.1f} <= {sideway_rsi_max}, Nến rút chân đảo chiều."
+                    "detail": f"📦 [SIDEWAY RANGE ({ex_tag})] Chạm đáy Lower BB (${bbl_1h:,.2f}), RSI quá bán={rsi_1h:.1f} <= {sideway_rsi_max}, Nến rút chân đảo chiều."
                 }
 
         # =========================================================================
@@ -220,12 +227,12 @@ def analyze_technical_signal(symbol: str) -> tuple:
             if diagnostics["step2_trend_4h"] is None:
                 diagnostics["step2_trend_4h"] = {
                     "status": "REJECT",
-                    "detail": "Không có Uptrend 4H và không thỏa mãn điều kiện bắt đáy Sideway."
+                    "detail": f"[{ex_tag}] Không có Uptrend 4H và không thỏa mãn điều kiện bắt đáy Sideway."
                 }
             if diagnostics["step3_trigger_1h"] is None:
                 diagnostics["step3_trigger_1h"] = {
                     "status": "REJECT",
-                    "detail": f"RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Giá=${close_1h:,.2f}, Lower BB=${bbl_1h:,.2f} -> Chưa có điểm vào lệnh đạt chuẩn."
+                    "detail": f"[{ex_tag}] RSI={rsi_1h:.1f}, ADX={adx_1h:.1f}, Giá=${close_1h:,.2f}, Lower BB=${bbl_1h:,.2f} -> Chưa có điểm vào lệnh đạt chuẩn."
                 }
             return None, diagnostics
 
@@ -241,7 +248,7 @@ def analyze_technical_signal(symbol: str) -> tuple:
             tp_pct = tp2_pct
             act_tp1_share = tp1_share
             act_tp2_share = tp2_share
-            strategy_desc = f"🎯 SNIPER TREND: {coin_cfg.get('desc', 'Trend Pullback')} (TP1: 1.5x ATR, TP2: 5.5x ATR)"
+            strategy_desc = f"🎯 SNIPER TREND ({ex_tag}): {coin_cfg.get('desc', 'Trend Pullback')} (TP1: 1.5x ATR, TP2: 5.5x ATR)"
         else:
             sideway_sl_mult = getattr(config, 'SIDEWAY_SL_ATR_MULT', 1.2)
             sideway_tp_mult = getattr(config, 'SIDEWAY_TP_ATR_MULT', 1.3)
@@ -257,10 +264,11 @@ def analyze_technical_signal(symbol: str) -> tuple:
             tp2_pct = tp_pct
             act_tp1_share = 1.0
             act_tp2_share = 0.0
-            strategy_desc = "📦 SIDEWAY RANGE: Bắt đáy Lower BB + RSI quá bán, Chốt lời SMA20 / 1.3x ATR (SL 1.2x ATR)"
+            strategy_desc = f"📦 SIDEWAY RANGE ({ex_tag}): Bắt đáy Lower BB + RSI quá bán, Chốt lời SMA20 / 1.3x ATR (SL 1.2x ATR)"
 
         signal_data = {
             "symbol": symbol,
+            "exchange": exchange_name.lower().strip(),
             "strategy_type": strategy_type,
             "strategy_desc": strategy_desc,
             "entry_price": entry_price,

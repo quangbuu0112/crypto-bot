@@ -26,11 +26,13 @@ class GeminiAuditResult(BaseModel):
 
 def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: float, vol_ratio: float,
                              candles_summary: str, stop_loss: float = None, take_profit: float = None,
-                             atr: float = None, strategy_type: str = "SNIPER_TREND") -> GeminiAuditResult:
+                             atr: float = None, strategy_type: str = "SNIPER_TREND",
+                             exchange_name: str = "binance") -> GeminiAuditResult:
     """
-    Gửi bối cảnh giao dịch sang Gemini Flash để thẩm định lại rủi ro cho cả 2 chế độ (Trend & Sideway).
+    Gửi bối cảnh giao dịch sang Gemini Flash để thẩm định lại rủi ro cho từng sàn độc lập (Binance / Bybit).
     Tối ưu hóa giải phóng bộ nhớ (Memory-efficient).
     """
+    ex_upper = (exchange_name or "binance").upper().strip()
     sl_pct_desc = f"-{(entry_price - stop_loss)/entry_price*100:.1f}%" if stop_loss else "N/A"
     tp_pct_desc = f"+{(take_profit - entry_price)/entry_price*100:.1f}%" if take_profit else "N/A"
 
@@ -57,11 +59,12 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
 
     prompt = f"""
     Bạn là một Chuyên gia Quản trị Rủi ro Quỹ Định Lượng (Quant Portfolio Risk Manager).
-    Hệ thống vừa phát hiện một điểm vào lệnh MUA (BUY SIGNAL) cho cặp `{symbol}`.
+    Hệ thống vừa phát hiện một điểm vào lệnh MUA (BUY SIGNAL) trên sàn **{ex_upper}** cho cặp `{symbol}`.
     {strat_header}
     Mục tiêu tối thượng: THÀ BỎ LỠ CƠ HỘI CHỨ TUYỆT ĐỐI KHÔNG VÀO LỆNH XẤU / RỦI RO CAO.
 
-    === THÔNG SỐ KỸ THUẬT VỪA KÍCH HOẠT ===
+    === THÔNG SỐ KỸ THUẬT VỪA KÍCH HOẠT TRÊN SÀN {ex_upper} ===
+    • Sàn giao dịch: {ex_upper}
     • Cặp giao dịch: {symbol}
     • Giá vào lệnh (Entry): ${entry_price:.2f}
 {sl_info}{tp_info}{atr_info}    • Chỉ số RSI (1H): {rsi:.1f}

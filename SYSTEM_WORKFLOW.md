@@ -170,3 +170,26 @@ Thay vì dùng tỷ lệ phần trăm cố định dễ bị quét râu nến, b
 | **Chạy backtest 24 tháng đối chứng** | `python backtest/back_test.py` |
 | **Xem log trực tiếp trên server Linux (systemd)** | `journalctl -u crypto-bot -f` |
 | **Khởi động lại bot trên server Linux** | `sudo systemctl restart crypto-bot` |
+
+---
+
+## 🛡️ 5. Kiến trúc Live Trading: Native Exchange SL/TP Execution (Sàn giữ Stop Loss trực tiếp)
+
+> [!IMPORTANT]
+> **Quy tắc Vàng cho Trade Thật (Live Trading):** Không bao giờ để Bot giữ Stop Loss trong bộ nhớ RAM của tiến trình.
+> Ngay khi lệnh Mua MARKET khớp thành công, hệ thống **bắt buộc phải đẩy ngay lập tức** cặp lệnh OCO hoặc lệnh Stop-Loss Limit lên Orderbook của Binance & Bybit.
+
+### 5.1. Lý do & Cơ chế Phòng ngừa Rủi ro
+1. **Bảo vệ khi Server sập / Mất mạng / OOM:** Nếu AWS EC2 bị mất kết nối mạng, khởi động lại, hoặc bot bị crash, lệnh Cắt lỗ đã nằm sẵn trên Matching Engine của Sàn (Binance/Bybit). Sàn sẽ tự động bán cắt lỗ chính xác tại mức giá đã định mà không phụ thuộc vào trạng thái online của Bot.
+2. **Khắc phục trượt giá (Slippage) khi Flash Crash:** Khi thị trường sập đột ngột trong vài giây (Flash dump), lệnh Stop Loss đặt sẵn trên sàn sẽ được ưu tiên khớp lệnh đầu tiên trên orderbook.
+
+### 5.2. Triển khai Kỹ thuật trên từng sàn (trong [multi_exchange_trader.py](file:///c:/Code/multi_exchange_trader.py))
+- **Binance Spot:** 
+  - Đặt lệnh **OCO (One-Cancels-the-Other)** qua `privatePostOrderOco`: Đồng thời đặt Chốt lời (Limit Sell tại TP) và Cắt lỗ (Stop-Loss Limit tại SL).
+  - Nếu chạm TP, lệnh SL tự hủy. Nếu chạm SL, lệnh TP tự hủy.
+- **Bybit Spot / Unified:**
+  - Đặt lệnh **Conditional Stop Loss Order** với `triggerPrice = SL`, `triggerBy = LastPrice`.
+  - Tự động kích hoạt lệnh Market/Limit Sell khi giá chạm ngưỡng SL.
+- **Cơ chế dời SL về Hòa vốn (Breakeven) khi chạm TP1:**
+  - Khi bot phát hiện giá chạm TP1, bot gọi `cancel_all_native_protection_orders()` để hủy lệnh SL cũ và gọi `place_native_exchange_sltp()` để cập nhật mức SL mới (`SL = Entry`) trực tiếp trên sàn cho khối lượng còn lại.
+
