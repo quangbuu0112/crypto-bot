@@ -53,6 +53,22 @@ def reply_telegram(chat_id: str, text: str):
     except Exception as e:
         print(f"❌ [Telegram Commander] Lỗi gửi tin nhắn: {e}")
 
+def send_telegram_document(chat_id: str, file_path: str, caption: str = "") -> bool:
+    """Gửi file đính kèm (CSV, JSON, LOG...) trực tiếp về Telegram chat của người dùng"""
+    token = str(config.TELEGRAM_BOT_TOKEN).strip() if config.TELEGRAM_BOT_TOKEN else ""
+    if not token or not os.path.exists(file_path):
+        return False
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
+    try:
+        with open(file_path, 'rb') as f:
+            files = {'document': f}
+            data = {'chat_id': chat_id, 'caption': caption, 'parse_mode': 'Markdown'}
+            res = requests.post(url, data=data, files=files, timeout=30)
+            return res.status_code == 200
+    except Exception as e:
+        print(f"❌ [Telegram Commander] Lỗi gửi file {file_path}: {e}")
+        return False
+
 def get_help_message() -> str:
     return (
         "🤖 *DANH SÁCH LỆNH ĐIỀU KHIỂN BOT* 🤖\n\n"
@@ -66,14 +82,17 @@ def get_help_message() -> str:
         "└─ Xem các vị thế đang chạy & lịch sử chốt lời/cắt lỗ\n\n"
         "📊 `/report` hoặc `/thongke`\n"
         "└─ Báo cáo tổng hợp hiệu suất (Win Rate %, Tổng PnL %, Lãi/Lỗ trung bình)\n\n"
+        "📥 `/export` hoặc `/taive`\n"
+        "└─ Tải toàn bộ file thống kê CSV & JSON trực tiếp về máy\n\n"
         "🌐 `/market` hoặc `/vimo`\n"
         "└─ Xem báo cáo Macro Gatekeeper (BTC & Fear & Greed)\n\n"
         "⚡ `/scan` hoặc `/quet`\n"
         "└─ Kích hoạt quét 5 đồng coin ngay lập tức\n\n"
         "ℹ️ `/status`\n"
         "└─ Xem trạng thái hệ thống, model AI, cấu hình Quản trị Vốn\n\n"
-        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `risk 1.5`, `amount 100`, `orders`, `report`) mà không cần dấu `/` cũng được!"
+        "💡 *Mẹo:* Bạn chỉ cần gõ tên lệnh (VD: `export`, `balance`, `orders`, `report`) mà không cần dấu `/` cũng được!"
     )
+
 
 def handle_balance_command(chat_id: str):
     from paper_trader import get_current_paper_balance, load_trades, get_live_exchange_price
@@ -494,6 +513,74 @@ def handle_report_command(chat_id: str):
     )
     reply_telegram(chat_id, msg)
 
+def handle_export_command(chat_id: str):
+    """
+    Tự động xuất và gửi các file báo cáo thống kê (.csv, .json) về Telegram chat
+    """
+    from paper_trader import load_trades, TRADES_FILE
+    import csv
+
+    reply_telegram(chat_id, "⏳ *Đang chuẩn bị và đóng gói file dữ liệu thống kê...*")
+
+    trades = load_trades()
+    reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    live_csv_path = os.path.join(reports_dir, "live_paper_trades.csv")
+
+    # Xuất danh sách lệnh thực tế ra file CSV chuẩn
+    try:
+        with open(live_csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "Trade_ID", "Exchange", "Symbol", "Strategy", "Status",
+                "Position_USDT", "Entry_Price", "Close_Price", "SL_Target",
+                "TP1_Target", "TP2_Target", "PnL_Pct", "PnL_USD", "Opened_At", "Closed_At", "AI_Score"
+            ])
+            for t in trades:
+                writer.writerow([
+                    t.get("id", ""),
+                    t.get("exchange", "binance").upper(),
+                    t.get("symbol", ""),
+                    t.get("strategy_type", "SNIPER_TREND"),
+                    t.get("status", ""),
+                    t.get("position_size_usdt", ""),
+                    t.get("entry_price", ""),
+                    t.get("close_price", ""),
+                    t.get("stop_loss", ""),
+                    t.get("take_profit_1", ""),
+                    t.get("take_profit_2", ""),
+                    t.get("pnl_pct", ""),
+                    t.get("pnl_usd", ""),
+                    t.get("opened_at", ""),
+                    t.get("closed_at", ""),
+                    t.get("ai_score", "")
+                ])
+    except Exception as e:
+        print(f"⚠️ [Export CSV Error]: {e}")
+
+    sent_count = 0
+
+    # 1. Gửi file Live CSV
+    if os.path.exists(live_csv_path):
+        if send_telegram_document(chat_id, live_csv_path, f"📊 *File CSV Lịch sử Lệnh Paper Trading ({len(trades)} lệnh)*"):
+            sent_count += 1
+
+    # 2. Gửi file Live JSON gốc
+    if os.path.exists(TRADES_FILE):
+        if send_telegram_document(chat_id, TRADES_FILE, "📄 *File JSON Gốc (paper_trades.json)*"):
+            sent_count += 1
+
+    # 3. Gửi file Backtest CSV nếu có
+    backtest_csv = os.path.join(reports_dir, "backtest_trades.csv")
+    if os.path.exists(backtest_csv):
+        if send_telegram_document(chat_id, backtest_csv, "🎯 *File CSV Lịch sử Backtest Chiến Lược (215 lệnh)*"):
+            sent_count += 1
+
+    if sent_count > 0:
+        reply_telegram(chat_id, f"✅ *Đã xuất và gửi thành công {sent_count} file dữ liệu về Telegram của bạn!*")
+    else:
+        reply_telegram(chat_id, "❌ Chưa có dữ liệu giao dịch hoặc file báo cáo để xuất.")
+
 def process_message(chat_id: str, text: str, scan_callback=None):
     if not text:
         return
@@ -519,6 +606,9 @@ def process_message(chat_id: str, text: str, scan_callback=None):
 
     elif cmd in ['/report', '/thongke', 'report', 'thongke', 'pnl']:
         handle_report_command(chat_id)
+
+    elif cmd in ['/export', '/taive', '/download', '/csv', 'export', 'taive', 'download', 'csv']:
+        handle_export_command(chat_id)
 
     elif cmd in ['/market', '/vimo', 'market', 'vimo', 'btc']:
         handle_market_command(chat_id)
