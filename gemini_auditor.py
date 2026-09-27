@@ -23,6 +23,21 @@ class GeminiAuditResult(BaseModel):
         description="Lý do chi tiết 2-3 câu giải thích tại sao chấp nhận hoặc từ chối"
     )
 
+class GeminiRunnerAuditResult(BaseModel):
+    decision: str = Field(
+        description="Quyết định gồng lãi Runner: 'HOLD_RUNNER' (tiếp tục bám EMA20) hoặc 'TAKE_PROFIT_NOW' (chốt lời sớm ngay đỉnh do phát hiện xả hàng / phân kỳ)"
+    )
+    confidence_score: int = Field(
+        description="Điểm độ tin cậy từ 1 đến 10 đối với quyết định chốt lời sớm hoặc gồng tiếp"
+    )
+    risk_assessment: str = Field(
+        description="Tóm tắt 1 câu về tín hiệu tạo đỉnh nhận thấy (VD: Nến Shooting Star, phân kỳ âm RSI, Volume cá mập xả...)"
+    )
+    ai_reasoning: str = Field(
+        description="Lý do chi tiết 2-3 câu giải thích tại sao nên chốt ngay hay tiếp tục gồng"
+    )
+
+
 
 def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: float, vol_ratio: float,
                              candles_summary: str, stop_loss: float = None, take_profit: float = None,
@@ -105,4 +120,69 @@ def audit_signal_with_gemini(symbol: str, entry_price: float, rsi: float, adx: f
             time.sleep(1)
 
     print(f"❌ [Auditor] Không thể gọi bất kỳ Gemini model nào để thẩm định {symbol}: {last_error_str}")
+    return None
+
+
+def audit_runner_position_with_gemini(symbol: str, entry_price: float, current_price: float,
+                                      current_pnl_pct: float, ema20_4h: float, rsi_4h: float,
+                                      adx_4h: float, candles_summary: str,
+                                      exchange_name: str = "binance") -> GeminiRunnerAuditResult:
+    """
+    Thẩm định vị thế đang gồng lãi Runner (sau khi đã chốt TP1 35%):
+    - Đánh giá xem có nên chốt lời sớm ngay đỉnh (TAKE_PROFIT_NOW) do cá mập xả / phân kỳ,
+      hay tiếp tục gồng theo đường EMA20 (HOLD_RUNNER).
+    """
+    ex_upper = (exchange_name or "binance").upper().strip()
+    trailing_gain_pct = (ema20_4h - entry_price) / entry_price * 100.0 if entry_price > 0 else 0.0
+
+    prompt = f"""
+    Bạn là một Chuyên gia Quản trị Rủi ro Quỹ Định Lượng (Quant Risk Manager).
+    Hệ thống đang nắm giữ một vị thế MUA (LONG RUNNER 65%) đang có LÃI LỚN trên sàn **{ex_upper}** cho cặp `{symbol}`.
+    Vị thế này đã chốt lời 35% tại TP1 và rủi ro hiện tại = 0%. Stop Loss cơ học đang dời lên bám theo đường EMA20 khung 4H.
+
+    Nhiệm vụ của bạn: Đánh giá xem lực mua còn đủ khỏe để tiếp tục gồng (HOLD_RUNNER) hay đã xuất hiện dấu hiệu cá mập xả hàng / tạo đỉnh để kích hoạt CHỐT LỜI SỚM NGAY LẬP TỨC (TAKE_PROFIT_NOW).
+
+    === THÔNG TIN VỊ THẾ HIỆN TẠI TRÊN {ex_upper} ===
+    • Cặp giao dịch: {symbol}
+    • Giá vào lệnh (Entry): ${entry_price:.4f}
+    • Giá thị trường hiện tại: ${current_price:.4f} (Đang lãi: {current_pnl_pct:+.2f}%)
+    • Đường Trailing Stop EMA20 (4H): ${ema20_4h:.4f} (Mức lãi bảo hiểm nếu rơi về EMA20: {trailing_gain_pct:+.2f}%)
+    • RSI khung 4H: {rsi_4h:.1f}
+    • ADX khung 4H (Độ mạnh xu hướng): {adx_4h:.1f}
+
+    === DIỄN BIẾN 5 CÂY NẾN 4H GẦN NHẤT ===
+    {candles_summary}
+
+    === TIÊU CHÍ RA QUYẾT ĐỊNH ===
+    1. 'TAKE_PROFIT_NOW' (Điểm >= 8): Khi phát hiện nến Shooting Star râu trên rất dài ở đỉnh, phân kỳ âm RSI (giá tạo đỉnh mới nhưng RSI tụt), hoặc nến đỏ xả mạnh với Volume cá mập đột biến. Chốt ngay giá hiện tại để bảo toàn tối đa lợi nhuận thay vì chờ giá rơi về EMA20.
+    2. 'HOLD_RUNNER' (Điểm >= 8): Khi cấu trúc nến tăng vẫn khỏe, chưa có dấu hiệu xả hàng, các nhịp chỉnh chỉ là nến nhỏ rút chân đỡ giá tốt (Healthy Pullback). Tiếp tục để giá chạy bám theo EMA20.
+    """
+
+    models_to_try = [
+        getattr(config, 'GEMINI_PRIMARY_MODEL', 'gemini-3.5-flash-lite'),
+        getattr(config, 'GEMINI_FALLBACK_MODEL', 'gemini-3.6-flash')
+    ]
+
+    last_error_str = ""
+    for model_name in models_to_try:
+        try:
+            response = _client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=GeminiRunnerAuditResult,
+                    temperature=0.2,
+                ),
+            )
+            raw_text = str(response.text)
+            del response
+            return GeminiRunnerAuditResult.model_validate_json(raw_text)
+        except Exception as e:
+            last_error_str = str(e)
+            e = None
+            print(f"⚠️ [Runner Auditor] Model {model_name} gặp sự cố cho {symbol}: {last_error_str}. Đang chuyển model...")
+            time.sleep(1)
+
+    print(f"❌ [Runner Auditor] Không thể gọi Gemini để thẩm định Runner {symbol}: {last_error_str}")
     return None

@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import ccxt
 import config
 import multi_exchange_trader
+import gemini_auditor
+import signal_engine
 
 TRADES_FILE = "paper_trades.json"
 
@@ -302,7 +304,66 @@ def check_and_update_paper_trades():
                         events.append((t, f"{ex_tag} 🔴 [SNIPER] CẮT LỖ STOP LOSS (-{abs(t['pnl_pct']):.1f}% | -${abs(t['pnl_usd']):,.2f})"))
 
                 else:
-                    # Đã chốt 35% TP1, tiếp tục chạm TP2 Runner
+                    # =========================================================
+                    # GIAI ĐOẠN RUNNER 65%: TRAILING STOP EMA20 & AI AUDIT
+                    # =========================================================
+                    now_ts = int(time.time())
+
+                    # 1. Cập nhật Trailing Stop bám theo đường EMA20 (4H)
+                    if getattr(config, 'ENABLE_EMA20_TRAILING_RUNNER', True):
+                        runner_ctx = signal_engine.get_runner_technical_context(symbol, ex_name)
+                        if runner_ctx and 'ema20_4h' in runner_ctx:
+                            ema20_val = runner_ctx['ema20_4h']
+                            # Nâng Stop Loss bám sát EMA20 nhưng không bao giờ thấp hơn giá Entry
+                            new_trailing_sl = max(float(t.get('stop_loss', entry_price)), entry_price, ema20_val)
+                            if new_trailing_sl > float(t.get('stop_loss', entry_price)):
+                                t['stop_loss'] = round(new_trailing_sl, 4)
+                                t['trailing_ema20'] = round(ema20_val, 4)
+
+                    # 2. AI Gemini Runner Audit định kỳ để phát hiện xả đỉnh sớm
+                    if getattr(config, 'ENABLE_AI_RUNNER_AUDIT', True):
+                        last_audit_ts = int(t.get('last_ai_runner_audit_ts', 0))
+                        audit_interval = getattr(config, 'AI_RUNNER_AUDIT_INTERVAL_SEC', 1800)
+                        current_gain_pct = (current_price - entry_price) / entry_price * 100.0
+
+                        # Chỉ gọi AI audit nếu đang có lãi dương và đã qua thời gian interval
+                        if current_gain_pct > 2.0 and (now_ts - last_audit_ts) >= audit_interval:
+                            t['last_ai_runner_audit_ts'] = now_ts
+                            runner_ctx = signal_engine.get_runner_technical_context(symbol, ex_name)
+                            if runner_ctx:
+                                try:
+                                    ai_runner_res = gemini_auditor.audit_runner_position_with_gemini(
+                                        symbol=symbol,
+                                        entry_price=entry_price,
+                                        current_price=current_price,
+                                        current_pnl_pct=current_gain_pct,
+                                        ema20_4h=runner_ctx.get('ema20_4h', entry_price),
+                                        rsi_4h=runner_ctx.get('rsi_4h', 50.0),
+                                        adx_4h=runner_ctx.get('adx_4h', 25.0),
+                                        candles_summary=runner_ctx.get('candles_summary', ''),
+                                        exchange_name=ex_name
+                                    )
+
+                                    score_threshold = getattr(config, 'AI_RUNNER_EXIT_SCORE_THRESHOLD', 8)
+                                    if ai_runner_res and ai_runner_res.decision == "TAKE_PROFIT_NOW" and ai_runner_res.confidence_score >= score_threshold:
+                                        t['status'] = 'CLOSED_AI_RUNNER_EXIT'
+                                        t['close_price'] = current_price
+                                        tp1_pnl = float(t.get('tp1_pct', 0))
+                                        tp2_pnl = current_gain_pct
+                                        t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * tp2_pnl, 2)
+                                        t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
+                                        t['closed_at'] = now_str
+                                        events.append((
+                                            t,
+                                            f"{ex_tag} ⚡ [AI RUNNER AUDIT] CHỐT LỜI SỚM NGAY ĐỈNH (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})\n"
+                                            f"🎯 Điểm AI: {ai_runner_res.confidence_score}/10 | {ai_runner_res.risk_assessment}\n"
+                                            f"💡 Lý do: {ai_runner_res.ai_reasoning}"
+                                        ))
+                                        continue
+                                except Exception as e:
+                                    print(f"⚠️ [Runner Audit Error] {symbol}: {e}")
+
+                    # 3. Chạm TP2 Runner Cố Định (nếu có)
                     if current_price >= tp2_target:
                         t['status'] = 'CLOSED_TP2'
                         t['close_price'] = current_price
@@ -313,15 +374,28 @@ def check_and_update_paper_trades():
                         t['closed_at'] = now_str
                         events.append((t, f"{ex_tag} 🏆 [SNIPER RUNNER] CHỐT LỜI TOÀN BỘ TP2 (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
 
-                    # Đã chốt 35% TP1, quay đầu về Entry hòa vốn
+                    # 4. Quay đầu chạm Trailing Stop Loss (EMA20 hoặc Entry hòa vốn)
                     elif current_price <= float(t['stop_loss']):
-                        t['status'] = 'CLOSED_BE'
+                        is_trailing_profit = float(t['stop_loss']) > (entry_price * 1.002)
+                        t['status'] = 'CLOSED_TRAILING_EMA' if is_trailing_profit else 'CLOSED_BE'
                         t['close_price'] = current_price
                         tp1_pnl = float(t.get('tp1_pct', 0))
-                        t['pnl_pct'] = round(tp1_share * tp1_pnl, 2)
+                        locked_exit_pct = (float(t['stop_loss']) - entry_price) / entry_price * 100.0
+                        t['pnl_pct'] = round(tp1_share * tp1_pnl + tp2_share * max(0.0, locked_exit_pct), 2)
                         t['pnl_usd'] = round(pos_size * (t['pnl_pct'] / 100.0), 2)
                         t['closed_at'] = now_str
-                        events.append((t, f"{ex_tag} 🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 35% TP1: +{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"))
+                        
+                        if is_trailing_profit:
+                            events.append((
+                                t,
+                                f"{ex_tag} 🚀 [TRAILING EMA20] ĐÃ KHÓA LỢI NHUẬN BẢO VỆ ĐỈNH (+{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})\n"
+                                f"🛡️ Stop Loss đã bám theo đường EMA20 (${float(t['stop_loss']):,.2f}) an toàn!"
+                            ))
+                        else:
+                            events.append((
+                                t,
+                                f"{ex_tag} 🛡️ [SNIPER] QUAY ĐẦU CHẠM HÒA VỐN ENTRY (LÃI TRỌN 35% TP1: +{t['pnl_pct']:.1f}% | +${t['pnl_usd']:,.2f})"
+                            ))
 
         except Exception as e:
             print(f"❌ Lỗi lấy giá {symbol} trên {ex_name}: {e}")

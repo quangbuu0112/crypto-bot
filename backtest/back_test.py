@@ -207,18 +207,33 @@ def evaluate_signals(df: pd.DataFrame, symbol: str, params: dict, with_details: 
                     pnl_pct = -sl_pct * 100
                     break
             else:
-                # Giai đoạn 2: Đã chốt 30% tại TP1, SL đã về Entry (Risk = 0%)
-                if highs[j] >= tp2:
-                    result = "WIN"
-                    exit_price = tp2
-                    pnl_pct = (tp1_share * tp1_pct + tp2_share * tp2_pct) * 100
-                    break
-                elif lows[j] <= current_sl:
-                    # Chạm Break-even Entry (ăn 30% TP1, 70% còn lại hòa vốn)
-                    result = "WIN"
-                    exit_price = entry_price
-                    pnl_pct = (tp1_share * tp1_pct + tp2_share * 0.0) * 100
-                    break
+                # Giai đoạn 2: Đã chốt TP1 (35%), gồng 65% Runner theo EMA20
+                use_ema20_trailing = getattr(config, "ENABLE_EMA20_TRAILING_RUNNER", True)
+                if use_ema20_trailing:
+                    trailing_sl = max(entry_price, ema_entry[j])
+                    if closes[j] < ema_entry[j] or lows[j] <= trailing_sl:
+                        exit_price = max(trailing_sl, lows[j])
+                        rem_pct = (exit_price - entry_price) / entry_price
+                        result = "WIN"
+                        pnl_pct = (tp1_share * tp1_pct + tp2_share * max(0.0, rem_pct)) * 100
+                        break
+                    elif highs[j] >= tp2:
+                        result = "WIN"
+                        exit_price = tp2
+                        pnl_pct = (tp1_share * tp1_pct + tp2_share * tp2_pct) * 100
+                        break
+                else:
+                    if highs[j] >= tp2:
+                        result = "WIN"
+                        exit_price = tp2
+                        pnl_pct = (tp1_share * tp1_pct + tp2_share * tp2_pct) * 100
+                        break
+                    elif lows[j] <= current_sl:
+                        # Chạm Break-even Entry (ăn 35% TP1, 65% còn lại hòa vốn)
+                        result = "WIN"
+                        exit_price = entry_price
+                        pnl_pct = (tp1_share * tp1_pct + tp2_share * 0.0) * 100
+                        break
 
         if result == "SIDEWAY":
             exit_price = closes[end - 1]

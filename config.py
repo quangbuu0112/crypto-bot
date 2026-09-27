@@ -49,6 +49,15 @@ ATR_TP2_MULTIPLIER = 5.5          # TP2 Trend Runner mặc định (5.5x ATR - G
 TP1_SHARE = 0.35                  # Tỷ trọng chốt ở TP1: 35%
 TP2_SHARE = 0.65                  # Tỷ trọng chốt ở TP2: 65%
 
+# ==============================================================================
+# 🚀 CẤU HÌNH GỒNG LÃI RUNNER NÂNG CAO: TRAILING STOP EMA20 & AI GEMINI AUDIT
+# ==============================================================================
+ENABLE_EMA20_TRAILING_RUNNER = True   # Bật dời Stop Loss bám theo đường EMA20 (4H) sau khi chạm TP1
+ENABLE_AI_RUNNER_AUDIT = True         # Bật AI Gemini thẩm định phát hiện đỉnh sớm để chốt lời trước khi gãy EMA20
+AI_RUNNER_AUDIT_INTERVAL_SEC = 1800   # Tần suất AI thẩm định vị thế đang gồng (mỗi 30 phút)
+AI_RUNNER_EXIT_SCORE_THRESHOLD = 8    # Điểm tin cậy tối thiểu (>= 8/10) để AI kích hoạt lệnh chốt lời sớm
+
+
 # Cấu hình bộ lọc kỹ thuật vùng mua Sniper mặc định
 RSI_MIN = 42
 RSI_MAX = 65

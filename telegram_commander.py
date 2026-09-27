@@ -76,7 +76,7 @@ def get_help_message() -> str:
     )
 
 def handle_balance_command(chat_id: str):
-    from paper_trader import get_current_paper_balance, load_trades
+    from paper_trader import get_current_paper_balance, load_trades, get_live_exchange_price
 
     bal_data = get_current_paper_balance()
     initial_cap_per_ex = float(getattr(config, 'INITIAL_PAPER_BALANCE_PER_EXCHANGE', 500.0))
@@ -87,40 +87,77 @@ def handle_balance_command(chat_id: str):
     bal_bybit = bal_data.get('bybit', initial_cap_per_ex)
     bal_total = bal_data.get('total', total_initial)
 
-    binance_profit = bal_binance - initial_cap_per_ex
-    binance_roi = (binance_profit / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
+    binance_realized = bal_binance - initial_cap_per_ex
+    binance_roi = (binance_realized / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
 
-    bybit_profit = bal_bybit - initial_cap_per_ex
-    bybit_roi = (bybit_profit / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
+    bybit_realized = bal_bybit - initial_cap_per_ex
+    bybit_roi = (bybit_realized / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
 
-    total_profit = bal_total - total_initial
-    total_roi = (total_profit / total_initial) * 100.0 if total_initial > 0 else 0.0
+    total_realized = bal_total - total_initial
+    total_roi = (total_realized / total_initial) * 100.0 if total_initial > 0 else 0.0
 
     trades = load_trades()
-    open_binance = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "binance"]
-    closed_binance = [t for t in trades if t.get("status") != "OPEN" and t.get("exchange", "binance") == "binance"]
+    open_binance = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance").lower() == "binance"]
+    open_bybit = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance").lower() == "bybit"]
 
-    open_bybit = [t for t in trades if t.get("status") == "OPEN" and t.get("exchange", "binance") == "bybit"]
-    closed_bybit = [t for t in trades if t.get("status") != "OPEN" and t.get("exchange", "binance") == "bybit"]
+    def format_exchange_portfolio(ex_name, total_equity, open_trades):
+        in_trade_usd = sum(float(t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0))) for t in open_trades)
+        free_cash_usd = max(0.0, total_equity - in_trade_usd)
+        
+        ex_realized = total_equity - initial_cap_per_ex
+        ex_roi = (ex_realized / initial_cap_per_ex) * 100.0 if initial_cap_per_ex > 0 else 0.0
+
+        res = (
+            f"🏦 *SÀN {ex_name.upper()} PAPER:*\n"
+            f"• *Tổng tài sản:* `💵 ${total_equity:,.2f} USDT` (Realized: `{ex_realized:+,.2f} USDT` / `{ex_roi:+.2f}%`)\n"
+            f"• *Số dư USDT còn lại (Free Cash):* `🟢 ${free_cash_usd:,.2f} USDT`\n"
+            f"• *Vốn đang giữ trong coin (In-Trade):* `💼 ${in_trade_usd:,.2f} USDT` ({len(open_trades)} coin)\n"
+        )
+
+        if not open_trades:
+            res += "  └─ _Đang giữ 100% Tiền mặt USDT (Chưa mua coin nào)_\n\n"
+        else:
+            res += "• *Chi tiết các coin đang nắm giữ:*\n"
+            for t in open_trades:
+                sym = t['symbol']
+                entry_p = float(t.get('entry_price', 0))
+                pos_usd = float(t.get('position_size_usdt', getattr(config, 'ORDER_AMOUNT_USDT', 50.0)))
+                coin_qty = (pos_usd / entry_p) if entry_p > 0 else 0.0
+                curr_p = get_live_exchange_price(sym, ex_name) or entry_p
+                
+                unrealized_pct = ((curr_p - entry_p) / entry_p * 100.0) if entry_p > 0 else 0.0
+                unrealized_usd = pos_usd * (unrealized_pct / 100.0)
+                pnl_icon = "🟢" if unrealized_pct >= 0 else "🔴"
+                
+                strat_tag = "🎯 Trend" if t.get('strategy_type') == 'SNIPER_TREND' else "📦 Sideway"
+                tp1_info = " (✅ Đã chốt TP1)" if t.get('tp1_hit') else ""
+                
+                res += (
+                    f"  {pnl_icon} *{sym}* `[{strat_tag}]`{tp1_info}\n"
+                    f"    ├─ Đã mua: `💵 ${pos_usd:,.2f} USDT` ({coin_qty:.4f} {sym.split('/')[0]} @ `${entry_p:,.2f}`)\n"
+                    f"    ├─ Giá hiện tại: `${curr_p:,.2f}` | Lãi/Lỗ: *`{unrealized_pct:+.2f}%`* (`{unrealized_usd:+,.2f} USDT`)\n"
+                    f"    └─ Cắt lỗ (SL): `${float(t.get('stop_loss', 0)):,.2f}` | TP: `${float(t.get('take_profit_2', t.get('take_profit', 0))):,.2f}`\n"
+                )
+            res += "\n"
+        return res, in_trade_usd, free_cash_usd
+
+    binance_str, in_trade_binance, free_binance = format_exchange_portfolio("binance", bal_binance, open_binance)
+    bybit_str, in_trade_bybit, free_bybit = format_exchange_portfolio("bybit", bal_bybit, open_bybit)
+
+    total_in_trade = in_trade_binance + in_trade_bybit
+    total_free_cash = free_binance + free_bybit
 
     msg = (
-        "💰 *BÁO CÁO SỐ DƯ TÀI KHOẢN (DUAL-EXCHANGE)* 💰\n"
-        "📄 *Chế độ:* `Live Parallel Paper Trading (Binance + Bybit)`\n\n"
-        "🏦 *SÀN BINANCE PAPER:*\n"
-        f"• *Vốn khởi điểm:* `${initial_cap_per_ex:,.2f} USDT`\n"
-        f"• *Số dư khả dụng:* `💵 ${bal_binance:,.2f} USDT`\n"
-        f"• *Realized PnL:* `{binance_profit:+,.2f} USDT` (`{binance_roi:+.2f}%`)\n"
-        f"• *Vị thế OPEN:* `{len(open_binance)} lệnh` | *Đã đóng:* `{len(closed_binance)} lệnh`\n\n"
-        "🏦 *SÀN BYBIT PAPER:*\n"
-        f"• *Vốn khởi điểm:* `${initial_cap_per_ex:,.2f} USDT`\n"
-        f"• *Số dư khả dụng:* `💵 ${bal_bybit:,.2f} USDT`\n"
-        f"• *Realized PnL:* `{bybit_profit:+,.2f} USDT` (`{bybit_roi:+.2f}%`)\n"
-        f"• *Vị thế OPEN:* `{len(open_bybit)} lệnh` | *Đã đóng:* `{len(closed_bybit)} lệnh`\n\n"
-        "💼 *TỔNG DANH MỤC TOÀN HỆ THỐNG:*\n"
+        "💰 *BÁO CÁO CHI TIẾT SỐ DƯ & DANH MỤC COIN* 💰\n"
+        "📄 *Chế độ:* `Live Dual-Exchange Paper Trading`\n\n"
+        f"{binance_str}"
+        f"{bybit_str}"
+        "💼 *TỔNG HỢP DANH MỤC TOÀN HỆ THỐNG:*\n"
         f"• *Tổng vốn ban đầu:* `${total_initial:,.2f} USDT`\n"
         f"• *Tổng tài sản hiện tại:* `💵 ${bal_total:,.2f} USDT`\n"
-        f"• *Tổng Realized PnL:* `{total_profit:+,.2f} USDT` (`{total_roi:+.2f}%`)\n"
-        f"• *Tổng vị thế đang chạy:* `{len(open_binance) + len(open_bybit)} lệnh`\n\n"
+        f"• *Tổng USDT tiền mặt khả dụng:* `🟢 ${total_free_cash:,.2f} USDT`\n"
+        f"• *Tổng vốn đang nằm trong coin:* `💼 ${total_in_trade:,.2f} USDT` ({len(open_binance) + len(open_bybit)} vị thế)\n"
+        f"• *Tổng Lợi nhuận đã chốt (Realized PnL):* `{total_realized:+,.2f} USDT` (`{total_roi:+.2f}%`)\n\n"
     )
 
     # Nếu có cấu hình Testnet thì truy vấn thêm số dư sàn Testnet
@@ -141,7 +178,7 @@ def handle_balance_command(chat_id: str):
         except Exception:
             pass
 
-    msg += "💡 *Mẹo:* Bạn có thể gõ `/orders` để xem chi tiết các lệnh, hoặc `/report` để xem thống kê hiệu suất."
+    msg += "💡 *Mẹo:* Bạn có thể gõ `/orders` để xem lịch sử lệnh, hoặc `/report` để xem thống kê hiệu suất."
     reply_telegram(chat_id, msg)
 
 def handle_orders_command(chat_id: str):

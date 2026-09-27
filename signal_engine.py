@@ -304,3 +304,45 @@ def analyze_technical_signal(symbol: str, exchange_name: str = 'binance') -> tup
         if vol_ma20_s is not None: del vol_ma20_s
         if atr_s is not None: del atr_s
         if bb is not None: del bb
+
+
+def get_runner_technical_context(symbol: str, exchange_name: str = 'binance') -> dict:
+    """
+    Lấy thông số kỹ thuật 4H (EMA20, RSI, ADX, Tóm tắt 5 nến 4H) phục vụ cho Trailing Stop EMA20 và AI Runner Audit.
+    Đảm bảo giải phóng bộ nhớ (No memory leak).
+    """
+    df_4h = fetch_ohlcv_data(symbol, timeframe="4h", limit=50, exchange_name=exchange_name)
+    if df_4h is None or len(df_4h) < 30:
+        if df_4h is not None: del df_4h
+        return None
+
+    try:
+        ema20_series = ta.ema(df_4h['close'], length=20)
+        rsi_series = ta.rsi(df_4h['close'], length=14)
+        adx_res = ta.adx(df_4h['high'], df_4h['low'], df_4h['close'], length=14)
+        adx_series = adx_res['ADX_14'] if 'ADX_14' in adx_res.columns else None
+
+        current_ema20 = float(ema20_series.iloc[-2])
+        current_rsi = float(rsi_series.iloc[-2]) if rsi_series is not None else 50.0
+        current_adx = float(adx_series.iloc[-2]) if adx_series is not None else 25.0
+
+        candles_summary_lines = []
+        for i in range(5, 0, -1):
+            row = df_4h.iloc[-1 - i]
+            t_str = row['timestamp'].strftime('%H:%M %d/%m')
+            candles_summary_lines.append(
+                f"[{t_str}] Mở: {row['open']:.2f}, Cao: {row['high']:.2f}, Thấp: {row['low']:.2f}, Đóng: {row['close']:.2f}, Vol: {row['volume']:.1f}"
+            )
+        candles_summary = "\n    ".join(candles_summary_lines)
+
+        return {
+            "ema20_4h": current_ema20,
+            "rsi_4h": current_rsi,
+            "adx_4h": current_adx,
+            "candles_summary": candles_summary
+        }
+    except Exception as e:
+        print(f"⚠️ Lỗi lấy Runner Context {symbol} ({exchange_name}): {e}")
+        return None
+    finally:
+        del df_4h
